@@ -1,9 +1,9 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response } from 'express';
 
 const router = Router();
 
 // Example GET endpoint
-router.get('/hello', (req: Request, res: Response) => {
+router.get('/hello', (_req: Request, res: Response) => {
   res.json({ message: '👋 from Express + TypeScript!' });
 });
 

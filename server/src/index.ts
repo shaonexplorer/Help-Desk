@@ -1,4 +1,5 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
+import cors from 'cors';
 import 'dotenv/config';
 import errorHandler from './middleware/errorHandler';
 import { auth } from './auth';
@@ -9,6 +10,22 @@ import { toNodeHandler } from 'better-auth/node';
 
 const app = express();
 const PORT = process.env.PORT ?? 5000;
+
+// CORS — allow the Vite dev server to call the API during development.
+// Better Auth uses cookies, so we must reflect the request origin (not "*")
+// and enable credentials.
+const DEV_ORIGINS = ['http://localhost:3000', 'http://localhost:3001'];
+app.use(
+  cors({
+    origin(origin: string | undefined, callback: (err: Error | null, allowed: boolean) => void) {
+      // Allow same-origin requests (no Origin header) and configured origins.
+      if (!origin) return callback(null, true);
+      const allowed = process.env.CORS_ORIGIN?.split(',') ?? DEV_ORIGINS;
+      callback(null, allowed.includes(origin));
+    },
+    credentials: true,
+  }),
+);
 
 // Parse JSON bodies
 app.use(express.json());
