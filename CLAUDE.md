@@ -2,51 +2,63 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Status
+
+Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorepo is set up and runs, but the core ticket domain does not exist yet. Currently the app only has demo "Hello" routes, a single `Button` component, and a placeholder UI. Better Auth is wired on the server but there is no auth UI or protected-route middleware on the client.
+
 ## Common Development Commands
 
 | Task | Command |
 |------|---------|
-| Install all dependencies (root + workspaces) | `npm install` |
+| Install all dependencies (root + workspaces) | `npm install` |
 | Start **both** server and client (watch mode) | `npm run dev` |
 | Start **only** the Express backend | `npm run dev --workspace=server` |
 | Start **only** the Vite React frontend | `npm run dev --workspace=client` |
 | Build the production client bundle | `npm run build --workspace=client` |
 | Build the server TypeScript output | `npm run build --workspace=server` |
 | Run the compiled server (serves static files from `client/dist`) | `node server/dist/index.js` |
-| Run a single test (if a test framework is added later) | `npm test -- <test‑file-or‑pattern>` |
 
-> **Note:** The project uses **npm workspaces**. All workspace‑level scripts can be invoked with the `--workspace=<name>` flag as shown above.
+> **Note:** The project uses **npm workspaces**. All workspace-level scripts can be invoked with the `--workspace=<name>` flag as shown above.
 
-## High‑Level Architecture
+## High-Level Architecture
 
 ```
-Help‑Desk (root)
+Help-Desk (root)
 │
 ├─ package.json            ← workspace definitions, root scripts
 ├─ tsconfig.base.json      ← shared TypeScript compiler options
+├─ prisma/
+│   └─ schema.prisma       ← DB schema (User, Session, Account, Verification)
 │
 ├─ client/                 ← React UI (Vite + TypeScript)
-│   ├─ src/                ← component source files
-│   ├─ vite.config.ts      ← Vite config with React plugin & API proxy
-│   ├─ package.json        ← React deps (react, react‑dom) + dev deps (vite, @vitejs/plugin-react)
-│   └─ tsconfig.json       ← extends tsconfig.base.json
+│   ├─ src/
+│   │   ├─ main.ts         ← React entry point (createRoot + StrictMode)
+│   │   ├─ App.tsx         ← Root component
+│   │   ├─ api.ts          ← API client utilities (fetchHello)
+│   │   ├─ style.css       ← Tailwind v4 import + @theme tokens + base layer
+│   │   ├─ lib/utils.ts    ← cn() helper (clsx + tailwind-merge)
+│   │   └─ components/ui/  ← shadcn-style components (only Button so far)
+│   ├─ index.html          ← Vite entry, mounts #app
+│   ├─ vite.config.ts      ← React plugin, Tailwind, @ alias, /api proxy
+│   ├─ tsconfig.json       ← extends base, bundler moduleResolution, path alias
+│   └─ package.json        ← React 19, Vite 8, Tailwind v4, shadcn, @base-ui
 │
 └─ server/                 ← Express API (TypeScript)
     ├─ src/
-    │   ├─ index.ts        ← entry point: creates Express app, defines `/api/*` routes,
-    │   │                     serves static files from `../client/dist` when built
-    │   ├─ auth.ts          ← Better Auth instance (Prisma adapter, DB-backed sessions)
-    │   ├─ prisma.ts        ← PrismaClient singleton
-    │   ├─ routes/          ← Express routers (`api.ts`, `user.ts`)
-    │   └─ middleware/      ← `errorHandler.ts`; add `auth.ts` here for `requireAuth`
-    ├─ package.json        ← Express deps, TypeScript dev deps, tsx for hot reload
-    ├─ tsconfig.json       ← extends tsconfig.base.json, targets CommonJS
-    └─ .env                ← `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`
+    │   ├─ index.ts        ← Express entry: JSON parsing, /api/auth, static files, /api router, errorHandler
+    │   ├─ auth.ts         ← Better Auth instance (Prisma adapter, email+password, DB sessions)
+    │   ├─ prisma.ts       ← PrismaClient singleton
+    │   ├─ routes/api.ts   ← Demo routes: GET /hello, POST /echo
+    │   └─ middleware/
+    │       └─ errorHandler.ts ← Centralized JSON error handler
+    ├─ .env                ← DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL
+    ├─ tsconfig.json       ← extends base, targets CommonJS, ESNext modules
+    └─ package.json        ← Express 4, Prisma 6, tsx, @types/express 4
 ```
 
 ### Environment Variables
 
-The server reads from `server/.env` (loaded via `dotenv` in `server/src/index.ts`). Required vars:
+The server reads from `server/.env` (loaded via `dotenv/config` in `server/src/index.ts`). Required vars:
 
 | Var | Purpose |
 |-----|---------|
@@ -59,16 +71,16 @@ The server reads from `server/.env` (loaded via `dotenv` in `server/src/index.ts
 ### Interaction Flow
 
 1. **Development** – `npm run dev` launches both:
-   * **Vite** serves the React app on an available port (e.g., `http://localhost:3003`) and proxies any `/api/*` requests to the Express server.
-   * **ts-node-dev** runs the Express server on **port 5000**, recompiling on TypeScript changes.
+   * **Vite** serves the React app on port `3000` and proxies any `/api/*` requests to the Express server.
+   * **tsx watch** runs the Express server on port `5000`, recompiling on TypeScript changes.
 
-2. **Production Build** – `npm run build --workspace=client` creates a static bundle under `client/dist`. The Express server is then built (`npm run build --workspace=server`) and serves those static assets, enabling a single‑process deployment.
+2. **Production Build** – `npm run build --workspace=client` creates a static bundle under `client/dist`. The Express server is then built (`npm run build --workspace=server`) and serves those static assets, enabling a single-process deployment.
 
-3. **Shared TypeScript Settings** – `tsconfig.base.json` defines strict mode, module resolution, and JSON module support for both workspaces, keeping type‑checking consistent across front‑ and back‑end.
+3. **Shared TypeScript Settings** – `tsconfig.base.json` defines strict mode, module resolution, and JSON module support for both workspaces, keeping type-checking consistent across front- and back-end.
 
 ### Database & Auth Setup
 
-The Prisma schema lives at the **root** `prisma/schema.prisma` (the `server/prisma/schema.prisma` duplicate was removed). It defines the full Better Auth model set: `User` (String `id` via `cuid`), `Session`, `Account`, `Verification`.
+The Prisma schema lives at the **root** `prisma/schema.prisma`. It defines the full Better Auth model set: `User` (String `id` via `cuid`), `Session`, `Account`, `Verification`.
 
 Initial setup:
 ```bash
@@ -123,9 +135,29 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
 Then mount with `router.get('/profile', requireAuth, handler)`. The existing `errorHandler` will translate the thrown `401` into `{ "error": "Unauthorized" }`.
 
+## Frontend Notes
+
+- **React 19** with `createRoot` in StrictMode, mounted on `#app`
+- **Tailwind v4** using `@theme inline` design tokens in `style.css` (new v4 style, no `tailwind.config.js`)
+- **shadcn v4** components go in `client/src/components/ui/` — add with `npx shadcn@latest add <component>`
+- **Path alias**: `@/` maps to `client/src/` (configured in both `tsconfig.json` and `vite.config.ts`)
+- **API client**: `client/src/api.ts` has typed fetch helpers; only `fetchHello` exists so far
+- **Only one UI component**: `Button` (wraps `@base-ui/react/button` with CVA variants)
+
+## Known Gaps / TODOs
+
+- **No ticket domain** — no Ticket model, routes, or UI; the app does not yet do anything "help desk"-like
+- **No auth UI** — no sign-in/sign-up pages or auth state management on the client
+- **No `requireAuth` middleware** — only documented as a pattern above; `server/src/middleware/auth.ts` does not exist
+- **No tests** — no test framework installed
+- **No git repo** — no `.git`, no commits, no `.gitignore`
+- **No README** — only this CLAUDE.md documents the project
+- **Demo routes only** — `/api/hello` and `/api/echo` are throwaway examples, not real features
+- **Express 4 vs @types/express 5** — server uses `express@^4.21.2` but `@types/express@^5.0.6` is installed in client; minor type mismatch risk if shared types are added
+
 ## Documentation Guidance
 
-When a user asks for library‑specific information (e.g., Express API usage, React hooks, Vite configuration, or TypeScript language features), **always fetch the latest official docs via Context7** before answering:
+When a user asks for library-specific information (e.g., Express API usage, React hooks, Vite configuration, or TypeScript language features), **always fetch the latest official docs via Context7** before answering:
 
 1. Resolve the library ID:
    ```bash
