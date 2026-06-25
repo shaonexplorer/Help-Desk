@@ -1,0 +1,19 @@
+{
+  "name": "my-fullstack",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm:dev --workspace=server\" \"npm:dev --workspace=client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "shadcn": "^4.11.0"
+  },
+  "dependencies": {
+    "better-auth": "^1.6.20"
+  }
+}
