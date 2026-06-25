@@ -22,7 +22,7 @@ export async function fetchHello(): Promise<HelloResponse> {
     return data;
   } catch (err) {
     // Preserve stack trace for debugging in development
-    if (process.env.NODE_ENV !== 'production') {
+    if (import.meta.env.DEV) {
       console.error('fetchHello error:', err);
     }
     throw err;
