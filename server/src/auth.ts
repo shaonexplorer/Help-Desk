@@ -2,6 +2,17 @@ import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import prisma from './prisma';
 
+// Fail fast at startup rather than run with a weak / missing secret that
+// an attacker could forge session cookies for. Generate with:
+//   openssl rand -base64 32
+const secret = process.env.BETTER_AUTH_SECRET;
+if (!secret || secret.length < 32) {
+  throw new Error(
+    'BETTER_AUTH_SECRET is missing or too short (min 32 chars). ' +
+      'Generate one with: openssl rand -base64 32',
+  );
+}
+
 export const auth = betterAuth({
   // Database adapter using Prisma client
   database: prismaAdapter(prisma, {
@@ -10,8 +21,8 @@ export const auth = betterAuth({
 
   trustedOrigins: ['http://localhost:3000', 'http://localhost:3002'],
 
-  // Load secret and base URL from environment (fallback defaults)
-  secret: process.env.BETTER_AUTH_SECRET,
+  // Validated above — never pass an unset / short value through.
+  secret,
   baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:5000',
 
   // Enable email & password authentication (minimal UI needed)
