@@ -1,9 +1,11 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/lib/auth";
-import { ProtectedRoute } from "@/components/protected-route";
-import { PublicRoute } from "@/components/public-route";
-import { LoginPage } from "@/components/login-page";
-import { Dashboard } from "@/components/dashboard";
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from '@/lib/auth';
+import { ProtectedRoute } from '@/components/protected-route';
+import { PublicRoute } from '@/components/public-route';
+import { LoginPage } from '@/components/login-page';
+import { Dashboard } from '@/components/dashboard';
+import { UsersListPage } from '@/components/users-list-page';
+import { AppShell } from '@/components/app-shell';
 
 export function App() {
   return (
@@ -14,7 +16,19 @@ export function App() {
             path="/"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <AppShell>
+                  <Dashboard />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <UsersListPage />
+                </AppShell>
               </ProtectedRoute>
             }
           />
