@@ -10,6 +10,7 @@ import { usersModule } from './modules/users';
 
 import path from 'path';
 import { toNodeHandler } from 'better-auth/node';
+import { seedAdmin } from './scripts/seed-admin';
 
 const app = express();
 const PORT = process.env.PORT ?? 5000;
@@ -50,4 +51,6 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(process.cwd(), '..', '..', 'client', 'dist', 'index.html'));
 });
 
-app.listen(PORT, () => console.log(`🚀 Server listening at http://localhost:${PORT}`));
+seedAdmin().finally(() => {
+  app.listen(PORT, () => console.log(`🚀 Server listening at http://localhost:${PORT}`));
+});

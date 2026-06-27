@@ -25,6 +25,14 @@ export interface UserResponse {
   user: RosterUser;
 }
 
+/** Payload for creating a new crew member. Role defaults to AGENT on the server. */
+export interface CreateUserInput {
+  name: string;
+  email: string;
+  password: string;
+  role: Role;
+}
+
 /**
  * Fetch the full crew roster. Requires an authenticated session (the server
  * gates /api/* behind Better Auth). Returns members most-recently-joined first.
@@ -37,5 +45,15 @@ export async function fetchUsers(): Promise<UsersResponse> {
 /** Fetch a single crew member by id. Returns the roster-safe shape. */
 export async function fetchUser(id: string): Promise<UserResponse> {
   const { data } = await apiClient.get<UserResponse>(`/api/users/${id}`);
+  return data;
+}
+
+/**
+ * Create a new crew member. The server routes through Better Auth's sign-up
+ * handler so the password is hashed and the Account row is linked exactly as
+ * the email+password sign-in flow expects.
+ */
+export async function createUser(input: CreateUserInput): Promise<UserResponse> {
+  const { data } = await apiClient.post<UserResponse>("/api/users", input);
   return data;
 }

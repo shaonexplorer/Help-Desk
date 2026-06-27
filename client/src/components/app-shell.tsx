@@ -1,9 +1,9 @@
-import type { ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import { useAuth } from "@/lib/auth";
-import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { Ticket, Users, LogOut } from "lucide-react";
+import type { ReactNode } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/auth';
+import { authClient } from '@/lib/auth-client';
+import { Button } from '@/components/ui/button';
+import { Ticket, Users, LogOut, UserPlus } from 'lucide-react';
 
 /**
  * The shared authenticated shell: a single navbar every interior page renders
@@ -16,7 +16,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const handleSignOut = async () => {
     await authClient.signOut();
-    navigate("/login", { replace: true });
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -34,8 +34,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               className={({ isActive }) =>
                 `rounded-md px-2.5 py-1 text-sm transition-colors ${
                   isActive
-                    ? "bg-accent font-medium text-[#1E3A5F]"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? 'bg-accent font-medium text-[#1E3A5F]'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`
               }
             >
@@ -43,11 +43,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             </NavLink>
             <NavLink
               to="/users"
+              end
               className={({ isActive }) =>
                 `flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors ${
                   isActive
-                    ? "bg-accent font-medium text-[#1E3A5F]"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? 'bg-accent font-medium text-[#1E3A5F]'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`
               }
             >

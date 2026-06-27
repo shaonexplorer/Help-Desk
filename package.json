@@ -9,14 +9,18 @@
   "scripts": {
     "dev": "concurrently \"npm:dev --workspace=server\" \"npm:dev --workspace=client\""
   },
+  "prisma": {
+    "seed": "npm run seed --workspace=server"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "shadcn": "^4.11.0"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.4.0",
+    "@hookform/resolvers": "^4.1.3",
     "better-auth": "^1.6.20",
     "react-hook-form": "^7.80.0",
-    "react-router-dom": "^7.18.0"
+    "react-router-dom": "^7.18.0",
+    "zod": "^3.25.76"
   }
 }

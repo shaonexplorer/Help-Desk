@@ -5,4 +5,5 @@ import { UserController } from './user.controller';
 export function mountUsers(router: Router): void {
   router.get('/users', UserController.list);
   router.get('/users/:id', UserController.getById);
+  router.post('/users', UserController.create);
 }

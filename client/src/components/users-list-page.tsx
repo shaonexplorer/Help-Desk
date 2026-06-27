@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Input } from "@/components/ui/input";
-import { fetchUsers, type RosterUser, type Role } from "@/api";
-import { Search, Copy, Check, Mail } from "lucide-react";
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import { Input } from '@/components/ui/input';
+import { fetchUsers, type RosterUser, type Role } from '@/api';
+import { Search, Copy, Check, Mail, UserPlus } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -10,9 +11,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 
-type Presence = "active" | "idle" | "offline";
+type Presence = 'active' | 'idle' | 'offline';
 
 /**
  * Crew roster — a subject-grounded take on the generic "users list."
@@ -27,62 +28,60 @@ type Presence = "active" | "idle" | "offline";
 function presenceFor(user: RosterUser): Presence {
   const seed = [...user.id].reduce((acc, c) => acc + c.charCodeAt(0), 0);
   const bucket = seed % 3;
-  return bucket === 0 ? "active" : bucket === 1 ? "idle" : "offline";
+  return bucket === 0 ? 'active' : bucket === 1 ? 'idle' : 'offline';
 }
 
 /** Two-letter monogram from a name or email. */
 function monogramFor(user: RosterUser): string {
   const source = user.name?.trim() ?? user.email;
   const parts = source.split(/\s+|@|\./).filter(Boolean);
-  if (parts.length === 0) return "—";
+  if (parts.length === 0) return '—';
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
 }
 
 /** Handle / handle-like label derived from email local-part. */
 function handleFor(email: string): string {
-  const local = email.split("@")[0] ?? "";
+  const local = email.split('@')[0] ?? '';
   return `@${local}`;
 }
 
 /** Monospace "station log" line — the signature typographic move. */
 function logLine(date: Date): string {
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `log ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
-    date.getSeconds()
-  )}`;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `log ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 const presenceText: Record<Presence, string> = {
-  active: "On shift",
-  idle: "Idle",
-  offline: "Off shift",
+  active: 'On shift',
+  idle: 'Idle',
+  offline: 'Off shift',
 };
 
 /** Role badge — admin reads as the senior station, agent as the floor crew. */
 function RoleBadge({ role }: { role: Role }) {
-  const isAdmin = role === "ADMIN";
+  const isAdmin = role === 'ADMIN';
   return (
     <span
       className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium tracking-tight ${
         isAdmin
-          ? "border-[#1E3A5F]/30 bg-[#E8EEF5] text-[#1E3A5F]"
-          : "border-[#E4E1D7] bg-white text-[#6B6860]"
+          ? 'border-[#1E3A5F]/30 bg-[#E8EEF5] text-[#1E3A5F]'
+          : 'border-[#E4E1D7] bg-white text-[#6B6860]'
       }`}
     >
-      {isAdmin ? "Admin" : "Agent"}
+      {isAdmin ? 'Admin' : 'Agent'}
     </span>
   );
 }
 
 export function UsersListPage() {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // The roster lives in the QueryClient cache. `useQuery` owns loading, error,
   // retries, and refetch — no manual state, no cancellation flags.
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["users"],
+    queryKey: ['users'],
     queryFn: fetchUsers,
   });
 
@@ -95,13 +94,13 @@ export function UsersListPage() {
       (u) =>
         u.name?.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
-        u.role.toLowerCase().includes(q)
+        u.role.toLowerCase().includes(q),
     );
   }, [users, query]);
 
   const activeCount = useMemo(
-    () => users.filter((u) => presenceFor(u) === "active").length,
-    [users]
+    () => users.filter((u) => presenceFor(u) === 'active').length,
+    [users],
   );
 
   const copyEmail = async (user: RosterUser) => {
@@ -128,20 +127,32 @@ export function UsersListPage() {
           </span>
         </div>
 
-        <p className="mb-8 max-w-xl text-2xl font-light leading-snug tracking-tight text-[#16150F]">
-          The people behind the desk. Presence, identity, and a line per
-          station — so you know who&rsquo;s on shift and how to reach them.
+        <p className="mb-6 max-w-xl text-2xl font-light leading-snug tracking-tight text-[#16150F]">
+          The people behind the desk. Presence, identity, and a line per station — so you know
+          who&rsquo;s on shift and how to reach them.
         </p>
 
-        {/* Search */}
-        <div className="relative mb-8 max-w-sm">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#6B6860]" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or email…"
-            className="h-9 border-[#E4E1D7] bg-white pl-8 placeholder:text-[#6B6860] focus-visible:ring-[#1E3A5F]/30"
-          />
+        {/* Primary action */}
+
+        <div className="w-full flex items-center justify-between">
+          {/* Search */}
+          <div className="relative mb-8 max-w-sm">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#6B6860]" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name or email…"
+              className="h-9 border-[#E4E1D7] bg-white pl-8 placeholder:text-[#6B6860] focus-visible:ring-[#1E3A5F]/30"
+            />
+          </div>
+          {/* add member */}
+          <Link
+            to="/users/create"
+            className=" mb-8 inline-flex items-center gap-1.5 text-sm font-medium text-[#1E3A5F] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 focus-visible:ring-offset-2 rounded"
+          >
+            <UserPlus className="size-3.5" />
+            Add member
+          </Link>
         </div>
 
         {/* States */}
@@ -158,10 +169,8 @@ export function UsersListPage() {
 
         {isError && (
           <div className="rounded-xl border border-[#E4E1D7] bg-white px-5 py-4 text-sm text-[#6B6860]">
-            <span className="font-medium text-[#16150F]">
-              Couldn&rsquo;t load the roster.
-            </span>{" "}
-            {error instanceof Error ? error.message : "Something went wrong."}
+            <span className="font-medium text-[#16150F]">Couldn&rsquo;t load the roster.</span>{' '}
+            {error instanceof Error ? error.message : 'Something went wrong.'}
           </div>
         )}
 
@@ -169,8 +178,8 @@ export function UsersListPage() {
           <div className="rounded-xl border border-dashed border-[#E4E1D7] bg-white/60 px-5 py-16 text-center">
             <p className="text-sm text-[#6B6860]">
               {query
-                ? "No one matches your search."
-                : "No crew members yet — invite your team to get started."}
+                ? 'No one matches your search.'
+                : 'No crew members yet — invite your team to get started.'}
             </p>
           </div>
         )}
@@ -185,9 +194,7 @@ export function UsersListPage() {
                 <TableHead className="text-[#6B6860]">Email</TableHead>
                 <TableHead className="text-[#6B6860]">Status</TableHead>
                 <TableHead className="text-[#6B6860]">Station log</TableHead>
-                <TableHead className="pr-5 text-right text-[#6B6860]">
-                  Contact
-                </TableHead>
+                <TableHead className="pr-5 text-right text-[#6B6860]">Contact</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -202,11 +209,9 @@ export function UsersListPage() {
                         </span>
                         <div className="min-w-0">
                           <p className="truncate font-semibold tracking-tight text-[#16150F]">
-                            {user.name ?? "Unnamed agent"}
+                            {user.name ?? 'Unnamed agent'}
                           </p>
-                          <p className="truncate text-xs text-[#6B6860]">
-                            {handleFor(user.email)}
-                          </p>
+                          <p className="truncate text-xs text-[#6B6860]">{handleFor(user.email)}</p>
                         </div>
                       </div>
                     </TableCell>
@@ -215,9 +220,7 @@ export function UsersListPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm text-[#16150F]">
-                          {user.email}
-                        </span>
+                        <span className="truncate text-sm text-[#16150F]">{user.email}</span>
                         <button
                           type="button"
                           onClick={() => copyEmail(user)}
@@ -235,22 +238,20 @@ export function UsersListPage() {
                     <TableCell>
                       <span className="relative inline-flex items-center gap-2">
                         <span className="relative flex size-2">
-                          {presence === "active" && (
+                          {presence === 'active' && (
                             <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#2F7D4F] opacity-60" />
                           )}
                           <span
                             className={`relative inline-flex size-2 rounded-full ${
-                              presence === "active"
-                                ? "bg-[#2F7D4F]"
-                                : presence === "idle"
-                                  ? "bg-amber-500"
-                                  : "bg-[#C7C4BB]"
+                              presence === 'active'
+                                ? 'bg-[#2F7D4F]'
+                                : presence === 'idle'
+                                  ? 'bg-amber-500'
+                                  : 'bg-[#C7C4BB]'
                             }`}
                           />
                         </span>
-                        <span className="text-sm text-[#6B6860]">
-                          {presenceText[presence]}
-                        </span>
+                        <span className="text-sm text-[#6B6860]">{presenceText[presence]}</span>
                       </span>
                     </TableCell>
                     <TableCell>
@@ -277,4 +278,3 @@ export function UsersListPage() {
     </main>
   );
 }
-
