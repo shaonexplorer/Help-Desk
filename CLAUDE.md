@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorepo is set up and runs. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain exists (list + detail, admin/agent roles); the core ticket domain does not yet.
+Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorepo is set up and runs. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain exists (list + detail + create, admin/agent roles); the core ticket domain does not yet.
 
 ## Common Development Commands
 
@@ -37,7 +37,7 @@ Help-Desk (root)
 │  │  ├─ App.tsx            ← Root: AuthProvider + BrowserRouter + Routes
 │  │  ├─ api/               ← Per-domain API modules (mirrors server modules)
 │  │  │  ├─ index.ts        ← Barrel re-export of all API functions/types
-│  │  │  ├─ users.ts        ← fetchUsers, fetchUser, RosterUser, Role
+│  │  │  ├─ users.ts        ← fetchUsers, fetchUser, createUser, RosterUser, Role, CreateUserInput
 │  │  │  └─ health.ts       ← fetchHello, HelloResponse
 │  │  ├─ style.css          ← Tailwind v4 import + @theme tokens + base layer
 │  │  ├─ lib/
@@ -53,6 +53,8 @@ Help-Desk (root)
 │  │       ├─ login-form.tsx      ← Login form (react-hook-form + zod + authClient.signIn)
 │  │       ├─ dashboard.tsx       ← Authenticated home (health probe via useQuery)
 │  │       ├─ users-list-page.tsx ← Crew roster table (roles, presence, useQuery)
+│  │       ├─ create-user-page.tsx← Dispatch card for adding a new crew member
+│  │       ├─ create-user-form.tsx← react-hook-form + zod (name, email, password, role)
 │  │       ├─ protected-route.tsx ← Redirects to /login if no session
 │  │       ├─ public-route.tsx    ← Redirects to / if already logged in
 │  │       └─ ui/                 ← shadcn-style components (Button, Input, Label, Table)
@@ -80,9 +82,9 @@ Help-Desk (root)
    │  │  │  ├─ health.route.ts       ← mountHealth(router)
    │  │  │  └─ index.ts              ← exports healthModule: Mountable
    │  │  └─ users/
-   │  │     ├─ user.model.ts      ← Prisma access + ROSTER_SELECT allow-list
-   │  │     ├─ user.validation.ts ← validateIdParam + ValidationResult
-   │  │     ├─ user.controller.ts ← UserController.list / getById (asyncHandler + HttpError)
+   │  │     ├─ user.model.ts      ← Prisma access + ROSTER_SELECT allow-list + createUser (Better Auth sign-up)
+   │  │     ├─ user.validation.ts ← validateIdParam + validateCreateUserBody + ValidationResult
+   │  │     ├─ user.controller.ts ← UserController.list / getById / create (asyncHandler + HttpError)
    │  │     ├─ user.route.ts      ← mountUsers(router)
    │  │     └─ index.ts           ← exports usersModule: Mountable
    │  ├─ routes/
@@ -173,6 +175,7 @@ All `/api/*` routes except `/api/auth/*` are gated behind `requireAuth` (mounted
 | `GET /api/hello` | health | Server greeting probe. Returns `{ message }`. |
 | `GET /api/users` | users | Full crew roster, most-recent first. Returns `{ users: RosterUser[] }`. |
 | `GET /api/users/:id` | users | Single crew member. Returns `{ user }`, or 404 `{ error }` if not found. |
+| `POST /api/users` | users | Create a new crew member. Body: `name`, `email`, `password`, `role?` (defaults to AGENT). Routes through Better Auth sign-up. Returns 201 `{ user }`, 400 `{ error }` on validation failure, 409 `{ error }` if email already exists. |
 
 Sessions are stored in the DB (`storeSessionInDatabase: true`, 7-day expiry). `User.id` is a `cuid` string, not an autoincrement int.
 
@@ -221,13 +224,24 @@ export const authClient = createAuthClient({
 
 Data fetching uses **axios** (`lib/api-client.ts`) plus **TanStack Query** (`lib/query-client.tsx`). The `api/` folder is split per domain to mirror the server's `modules/`:
 
-- `api/users.ts` — `fetchUsers()`, `fetchUser(id)`, and the `RosterUser` / `Role` / response types.
+- `api/users.ts` — `fetchUsers()`, `fetchUser(id)`, `createUser(input)`, and the `RosterUser` / `Role` / `CreateUserInput` / response types.
 - `api/health.ts` — `fetchHello()`.
 - `api/index.ts` — barrel re-export, so components import from `@/api`.
 
 The shared axios instance uses an empty `baseURL` (relative requests — Vite proxy in dev, same-origin in prod) and `withCredentials: true` to carry the session cookie. The `QueryClient` defaults to a 30s stale time, a single retry, and no refetch-on-window-focus.
 
+#### Axios + TanStack Query conventions
+
+- **Read calls** go through `useQuery` with a stable query key (e.g. `["users"]`, `["health"]`).
+- **Write calls** (`POST` / `PUT` / `DELETE`) call the `api/` function directly with `await`, then invalidate the relevant query key via `queryClient.invalidateQueries({ queryKey: [...] })` so the affected list refetches.
+- **Error handling for writes**: axios rejects with an `AxiosError` on non-2xx. The server's JSON error body is at `err.response.data.error` (a string). Always read that before falling back to `err.message` — the AxiosError's own message is the generic `"Request failed with status code NNN"`, never the server's intent.
+- **Error handling for reads**: `useQuery` exposes `isError` and `error`; render an error banner from `error.message` in the page.
+
+These conventions are the standard pattern for all new features — follow them when adding new API endpoints or pages.
+
 Pages call the API through `useQuery` (e.g. `users-list-page.tsx` uses queryKey `["users"]`; `dashboard.tsx` uses `["health"]`). To invalidate after a mutation, call `queryClient.invalidateQueries({ queryKey: [...] })`.
+
+**Users list page** (`users-list-page.tsx`): warm-paper surface (`#F7F6F1`) with ink-blue accents (`#1E3A5F`). The "Add member" link sits in a flex row alongside the search bar — search on the left, add member on the right — so the primary action stays visible without scrolling. The create-user page (`create-user-page.tsx`) uses the same visual identity: a dispatch-board card with monospace eyebrow and a `UserPlus` icon header.
 
 ## Frontend Notes
 
@@ -237,7 +251,7 @@ Pages call the API through `useQuery` (e.g. `users-list-page.tsx` uses queryKey 
 - **shadcn v4** components go in `client/src/components/ui/` — add with `npx shadcn@latest add <component>`
 - **Path alias**: `@/` maps to `client/src/` (configured in both `tsconfig.json` and `vite.config.ts`)
 - **UI components**: `Button`, `Input`, `Label`, `Table` (all shadcn-style; `Table` wraps native table elements)
-- **Form patterns**: Login uses `react-hook-form` + `zod` for client-side validation before calling the Better Auth client
+- **Form patterns**: All forms use `react-hook-form` + `zod` with `@hookform/resolvers`. The login form (email + password) and the create-user form (name, email, password, role) both follow the same field markup pattern: `<Label>` + `<Input>` + error `<p>`. On mutation success, invalidate the relevant query and navigate. Pin `zod` to v3 and `@hookform/resolvers` to v4 — the resolver v5 requires zod v4's standard-schema shape and will fail to type-check against v3 schemas.
 
 ## Admin Seed
 
@@ -257,7 +271,7 @@ To run manually: `npm run seed --workspace=server`.
 - **No git repo** — no `.git`, no commits, no `.gitignore`
 - **No README** — only this CLAUDE.md documents the project
 - **No role management UI** — users have an admin/agent role (DB + API + table badge), but there's no interface to change a role yet
-- **No sign-up page** — sign-in works, but there's no UI for creating new accounts yet
+- **No public sign-up page** — an admin can create crew members via `/users/create`, but there's no self-service public sign-up flow yet
 
 ## Documentation Guidance
 

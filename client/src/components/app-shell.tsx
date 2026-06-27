@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
-import { Ticket, Users, LogOut, UserPlus } from 'lucide-react';
+import { Ticket, Users, LogOut } from 'lucide-react';
 
 /**
  * The shared authenticated shell: a single navbar every interior page renders

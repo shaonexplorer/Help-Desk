@@ -56,9 +56,24 @@ export function CreateUserForm() {
       await queryClient.invalidateQueries({ queryKey: ["users"] });
       navigate("/users", { replace: true });
     } catch (err) {
-      setServerError(
-        err instanceof Error ? err.message : "Failed to create user.",
-      );
+      let message = "Failed to create user.";
+      if (
+        err &&
+        typeof err === "object" &&
+        "response" in err &&
+        err.response &&
+        typeof err.response === "object" &&
+        "data" in err.response &&
+        err.response.data &&
+        typeof err.response.data === "object" &&
+        "error" in err.response.data &&
+        typeof (err.response.data as Record<string, unknown>).error === "string"
+      ) {
+        message = (err.response.data as Record<string, string>).error;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setServerError(message);
     } finally {
       setIsLoading(false);
     }
