@@ -88,3 +88,13 @@ export async function deleteUser(id: string): Promise<UserResponse> {
   const { data } = await apiClient.delete<UserResponse>(`/api/users/${id}`);
   return data;
 }
+
+/**
+ * Reactivate a soft-deleted crew member. The server clears `deletedAt` so the
+ * user can sign in again. Returns 400 if the user isn't currently deleted and
+ * 404 if the user doesn't exist.
+ */
+export async function reactivateUser(id: string): Promise<UserResponse> {
+  const { data } = await apiClient.post<UserResponse>(`/api/users/${id}/reactivate`);
+  return data;
+}

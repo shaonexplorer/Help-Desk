@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
-import { fetchUsers, deleteUser, type RosterUser, type Role } from '@/api';
-import { Search, Copy, Check, Mail, UserPlus, Pencil, X, Trash2 } from 'lucide-react';
+import { fetchUsers, deleteUser, reactivateUser, type RosterUser, type Role } from '@/api';
+import { Search, Copy, Check, UserPlus, Pencil, X, Trash2, RotateCcw } from 'lucide-react';
 import { EditUserForm } from '@/components/edit-user-form';
 import { useAuth } from '@/lib/auth';
 import { ConfirmationDialog } from '@/components/confirmation-dialog';
@@ -96,6 +96,9 @@ export function UsersListPage() {
   const [deletingUser, setDeletingUser] = useState<RosterUser | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reactivatingUser, setReactivatingUser] = useState<RosterUser | null>(null);
+  const [reactivatePending, setReactivatePending] = useState(false);
+  const [reactivateError, setReactivateError] = useState<string | null>(null);
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const isAdmin = currentUser?.role === 'ADMIN';
@@ -108,8 +111,6 @@ export function UsersListPage() {
   });
 
   const users = data?.users ?? [];
-
-  console.log({ users });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -157,9 +158,26 @@ export function UsersListPage() {
     }
   };
 
-  // Whether the delete button for a given user should be interactive. Three
-  // reasons to disable: the current user isn't an admin, the target is an
-  // admin (admins can't be deleted), or the target is already deleted.
+  const confirmReactivate = async () => {
+    if (!reactivatingUser) return;
+    setReactivatePending(true);
+    setReactivateError(null);
+    try {
+      await reactivateUser(reactivatingUser.id);
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      setReactivatingUser(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to reactivate user';
+      setReactivateError(message);
+    } finally {
+      setReactivatePending(false);
+    }
+  };
+
+  // Whether the delete button for a given user should be interactive. Two
+  // reasons to disable: the target is an admin (admins can't be deleted), or
+  // the target is already deleted. Admin-gating of the button itself happens
+  // in the JSX.
   const canDelete = (target: RosterUser) => target.role !== 'ADMIN' && !target.deletedAt;
 
   return (
@@ -324,6 +342,14 @@ export function UsersListPage() {
           </div>
         )}
 
+        {/* Reactivate error banner. */}
+        {reactivateError && (
+          <div className="mb-4 rounded-xl border border-[#E4E1D7] bg-white px-5 py-4 text-sm text-[#6B6860]">
+            <span className="font-medium text-[#B94A3A]">Couldn&rsquo;t reactivate.</span>{' '}
+            {reactivateError}
+          </div>
+        )}
+
         {/* Confirmation dialog for deleting a crew member. Rendered as an overlay
             on top of the page — it's always available when `deletingUser` is
             set, regardless of whether the table is showing. */}
@@ -340,6 +366,25 @@ export function UsersListPage() {
               <strong>{deletingUser.name ?? deletingUser.email}</strong> will be soft-deleted. Their
               sessions are revoked immediately and they won&rsquo;t be able to sign in again — but
               the record is retained for audit.
+            </>
+          )}
+        </ConfirmationDialog>
+
+        {/* Confirmation dialog for reactivating a crew member. Same overlay
+            pattern as the delete dialog. */}
+        <ConfirmationDialog
+          open={!!reactivatingUser}
+          onCancel={() => setReactivatingUser(null)}
+          onConfirm={confirmReactivate}
+          title="Reactivate this crew member?"
+          confirmLabel="Reactivate"
+          confirmPending={reactivatePending}
+        >
+          {reactivatingUser && (
+            <>
+              <strong>{reactivatingUser.name ?? reactivatingUser.email}</strong> will be restored to
+              the active roster. They&rsquo;ll be able to sign in again with their existing
+              credentials.
             </>
           )}
         </ConfirmationDialog>
@@ -439,7 +484,16 @@ export function UsersListPage() {
                         >
                           <Mail className="size-3.5" />
                         </a> */}
-                        {canDelete(user) ? (
+                        {user.deletedAt ? (
+                          <button
+                            type="button"
+                            onClick={() => setReactivatingUser(user)}
+                            title={`Reactivate ${user.name ?? user.email}`}
+                            className="inline-grid size-7 place-items-center rounded-md border border-transparent text-[#2F7D4F] transition-colors hover:border-[#E4E1D7] hover:bg-[#F7F6F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30"
+                          >
+                            <RotateCcw className="size-3.5" />
+                          </button>
+                        ) : canDelete(user) ? (
                           <button
                             type="button"
                             onClick={() => setDeletingUser(user)}
@@ -452,11 +506,7 @@ export function UsersListPage() {
                           <span
                             className="inline-grid size-7 cursor-not-allowed place-items-center rounded-md text-[#C7C4BB]"
                             title={
-                              !isAdmin
-                                ? 'Admins only'
-                                : user.role === 'ADMIN'
-                                  ? 'Admins cannot be deleted'
-                                  : 'Already deleted'
+                              user.role === 'ADMIN' ? 'Admins cannot be deleted' : 'Already deleted'
                             }
                           >
                             <Trash2 className="size-3.5" />
