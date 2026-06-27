@@ -10,7 +10,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const loginSchema = z.object({
-  email: z.email('Enter a valid email address').min(1, 'Email is required'),
+  email: z
+    .string()
+    .email('Enter a valid email address')
+    .min(1, 'Email is required'),
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
@@ -50,7 +53,8 @@ export function LoginForm() {
             navigate(from, { replace: true });
           },
           onError: (ctx) => {
-            setServerError(messageFor(ctx.error.message || ctx.error.code));
+            const code = ctx.error.code as keyof typeof authClient.$ERROR_CODES | undefined;
+            setServerError(messageFor(code ?? ''));
           },
         },
       );

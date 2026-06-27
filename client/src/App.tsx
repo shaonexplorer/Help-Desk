@@ -5,6 +5,7 @@ import { PublicRoute } from '@/components/public-route';
 import { LoginPage } from '@/components/login-page';
 import { Dashboard } from '@/components/dashboard';
 import { UsersListPage } from '@/components/users-list-page';
+import { CreateUserPage } from '@/components/create-user-page';
 import { AppShell } from '@/components/app-shell';
 
 export function App() {
@@ -28,6 +29,16 @@ export function App() {
               <ProtectedRoute>
                 <AppShell>
                   <UsersListPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users/create"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <CreateUserPage />
                 </AppShell>
               </ProtectedRoute>
             }

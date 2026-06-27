@@ -13,6 +13,7 @@ Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorep
 | Install all dependencies (root + workspaces) | `npm install` |
 | Start **both** server and client (watch mode) | `npm run dev` |
 | Start **only** the Express backend | `npm run dev --workspace=server` |
+| Seed the admin user (idempotent) | `npm run seed --workspace=server` |
 | Start **only** the Vite React frontend | `npm run dev --workspace=client` |
 | Build the production client bundle | `npm run build --workspace=client` |
 | Build the server TypeScript output | `npm run build --workspace=server` |
@@ -237,6 +238,17 @@ Pages call the API through `useQuery` (e.g. `users-list-page.tsx` uses queryKey 
 - **Path alias**: `@/` maps to `client/src/` (configured in both `tsconfig.json` and `vite.config.ts`)
 - **UI components**: `Button`, `Input`, `Label`, `Table` (all shadcn-style; `Table` wraps native table elements)
 - **Form patterns**: Login uses `react-hook-form` + `zod` for client-side validation before calling the Better Auth client
+
+## Admin Seed
+
+`server/src/scripts/seed-admin.ts` seeds an admin user (`admin@gmail.com` / `password123`, role `ADMIN`) on server boot. It is invoked from `server/src/index.ts` before `app.listen`, so the admin is guaranteed to exist before the first request is served.
+
+- Idempotent: re-running updates the existing user's role instead of duplicating.
+- Uses Better Auth's own sign-up handler (synthetic `Request` via `auth.handler`) so the password hash and linked `Account` row are created exactly as the client sign-in flow expects — no manual hashing.
+- The role is set via a direct Prisma update after sign-up, since the Better Auth sign-up endpoint doesn't accept custom fields.
+- On failure, `process.exitCode = 1` is set but the server still starts listening — a transient DB hiccup during boot shouldn't leave the app dead.
+
+To run manually: `npm run seed --workspace=server`.
 
 ## Known Gaps / TODOs
 
