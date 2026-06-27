@@ -205,19 +205,19 @@ export const authClient = createAuthClient({
 ```
 
 **Key client methods:**
-- `authClient.signIn.email({ email, password }, { onSuccess, onError })` — the `onError` callback receives `{ error: { code, message } }`. Error codes are in `authClient.$ERROR_CODES`.
+- `authClient.signIn.email({ email, password }, { onSuccess, onError })` — the `onError` callback receives a `BetterFetchError` whose parsed JSON body is at `ctx.error.error` (shape `{ error: string }`). **There is no `code` property** — read the message from `ctx.error.error?.error`, falling back to `ctx.error.message`.
 - `authClient.signOut()` — clears the session cookie
 - `authClient.useSession()` — reactive hook returning `{ data, isPending, isRefetching, error, refetch }`. Re-fetches automatically after sign-in/sign-out.
 - `authClient.getSession()` — imperative fetch (for route guards / loaders)
 
-**Error handling** (`client/src/lib/auth-errors.ts`): Maps Better Auth error codes to user-facing strings. Import `messageFor(code)` and use it in `onError` callbacks.
+**Error handling** (`client/src/lib/auth-errors.ts`): Maps Better Auth error codes to user-facing strings. The `messageFor(code)` helper is kept for reference but is no longer used by the login form — the server now sends the human-readable message directly in the JSON body, so the form reads it from `ctx.error.error?.error` instead of mapping a code.
 
 ### Client Auth Flow
 
 1. `AuthProvider` (`client/src/lib/auth.tsx`) wraps the app and exposes `{ user, loading, refresh }` via `useAuth()`.
 2. `ProtectedRoute` (`client/src/components/protected-route.tsx`) redirects unauthenticated users to `/login` with `state={{ from: location }}`.
 3. `PublicRoute` (`client/src/components/public-route.tsx`) redirects authenticated users away from `/login` to `/`.
-4. After successful sign-in, `LoginForm` calls `authClient.signIn.email()` → `onSuccess` navigates to `from` (or `/`). `useSession()` re-fetches automatically — no manual `refresh()` needed.
+4. After successful sign-in, `LoginForm` calls `authClient.signIn.email()` → `onSuccess` navigates to `from` (or `/`). On failure, the `onError` callback reads the server's message from `ctx.error.error?.error` and displays it. `useSession()` re-fetches automatically — no manual `refresh()` needed.
 5. After sign-out, `AppShell` calls `authClient.signOut()` → navigates to `/login`. `useSession()` clears automatically.
 
 ### Client API Layer
@@ -302,7 +302,7 @@ When working with Better Auth configurations like the one in `server/src/auth.ts
 - Sign-out and other state-changing endpoints require the `Origin` header to match a trusted origin (CSRF protection)
 - The client SDK (`better-auth/react`) handles CSRF tokens automatically — no manual `getCsrfToken()` needed
 - `useSession()` is reactive and re-fetches on sign-in/sign-out. Use `getSession()` only for imperative checks outside React render.
-- Error codes from the client are typed as `string` (not a literal union) — cast via `error.code as keyof typeof authClient.$ERROR_CODES` when needed, or use the `messageFor()` helper in `client/src/lib/auth-errors.ts`
+- The `onError` callback receives a `BetterFetchError` — the parsed JSON body is at `ctx.error.error` (shape `{ error: string }`), **not** `ctx.error.code`. Read the message from `ctx.error.error?.error`, falling back to `ctx.error.message`. Do not cast `ctx.error.code` — the property does not exist on `BetterFetchError`.
 
 ---
 

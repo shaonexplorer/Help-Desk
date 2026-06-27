@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler, HttpError } from '../../core';
 import { UserModel } from './user.model';
-import { validateIdParam, validateCreateUserBody } from './user.validation';
+import { validateIdParam, validateCreateUserBody, validateUpdateUserBody } from './user.validation';
 
 /**
  * User controller — owns the HTTP layer for user resources. It shapes the
@@ -38,6 +38,26 @@ export const UserController = {
       const message = err instanceof Error ? err.message : 'Failed to create user';
       if (message.includes('422') || message.includes('already')) {
         throw new HttpError(409, 'A user with this email already exists');
+      }
+      throw new HttpError(500, message);
+    }
+  }),
+
+  update: asyncHandler(async (req: Request, res: Response) => {
+    const idResult = validateIdParam({ id: req.params.id });
+    if (!idResult.ok) throw new HttpError(400, idResult.errors.join(', '));
+
+    const bodyResult = validateUpdateUserBody(req.body);
+    if (!bodyResult.ok) throw new HttpError(400, bodyResult.errors.join(', '));
+
+    try {
+      const user = await UserModel.updateUser(idResult.value, bodyResult.value);
+      res.json({ user });
+    } catch (err) {
+      // Prisma throws when the row doesn't exist.
+      const message = err instanceof Error ? err.message : 'Failed to update user';
+      if (message.includes('Record to update not found')) {
+        throw new HttpError(404, 'User not found');
       }
       throw new HttpError(500, message);
     }

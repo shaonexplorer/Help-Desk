@@ -57,3 +57,23 @@ export async function createUser(input: CreateUserInput): Promise<UserResponse> 
   const { data } = await apiClient.post<UserResponse>("/api/users", input);
   return data;
 }
+
+/** Payload for updating an existing crew member. All fields optional. */
+export interface UpdateUserInput {
+  name?: string;
+  email?: string;
+  password?: string;
+  role?: Role;
+}
+
+/**
+ * Update an existing crew member. Only the provided fields are sent; the server
+ * applies a partial update. Returns the updated roster-safe shape.
+ */
+export async function updateUser(
+  id: string,
+  input: UpdateUserInput,
+): Promise<UserResponse> {
+  const { data } = await apiClient.put<UserResponse>(`/api/users/${id}`, input);
+  return data;
+}

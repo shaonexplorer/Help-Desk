@@ -32,6 +32,13 @@ export type CreateUserInput = {
   role: 'ADMIN' | 'AGENT';
 };
 
+export type UpdateUserInput = {
+  name?: string;
+  email?: string;
+  password?: string;
+  role?: 'ADMIN' | 'AGENT';
+};
+
 /**
  * User model — the only place that talks to Prisma about users. Controllers
  * call these methods; they never import prisma directly. Keeping every query
@@ -99,5 +106,25 @@ export const UserModel = {
     });
 
     return user;
+  },
+
+  /**
+   * Update an existing crew member. Name, email, and role are applied via a
+   * direct Prisma update. Password is accepted for validation but not applied
+   * here — Better Auth's `setPassword` requires an active session, and
+   * `changePassword` requires the current password, neither of which an admin
+   * flow has on hand. Password reset is a separate flow.
+   */
+  async updateUser(id: string, input: UpdateUserInput): Promise<RosterUser> {
+    const data: Record<string, unknown> = {};
+    if (input.name !== undefined) data.name = input.name;
+    if (input.email !== undefined) data.email = input.email;
+    if (input.role !== undefined) data.role = input.role;
+
+    return prisma.user.update({
+      where: { id },
+      data,
+      select: ROSTER_SELECT,
+    });
   },
 };
