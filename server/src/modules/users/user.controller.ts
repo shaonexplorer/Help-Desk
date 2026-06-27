@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { asyncHandler, HttpError } from '../../core';
 import { UserModel } from './user.model';
+import prisma from '../../prisma';
 import { validateIdParam, validateCreateUserBody, validateUpdateUserBody } from './user.validation';
 
 /**
@@ -61,5 +62,38 @@ export const UserController = {
       }
       throw new HttpError(500, message);
     }
+  }),
+
+  /**
+   * Soft-delete a crew member. Two guard-rails:
+   *  - 403 if the target is an admin — admins can never be deleted.
+   *  - 404 if the target doesn't exist or is already deleted.
+   * After the stamp, the target's session rows are deleted so any existing
+   * cookies stop working immediately — a deleted user can't act on the app.
+   */
+  delete: asyncHandler(async (req: Request, res: Response) => {
+    const idResult = validateIdParam({ id: req.params.id });
+    if (!idResult.ok) throw new HttpError(400, idResult.errors.join(', '));
+
+    const target = await prisma.user.findUnique({
+      where: { id: idResult.value },
+      select: { id: true, role: true, deletedAt: true },
+    });
+
+    if (!target || target.deletedAt) {
+      throw new HttpError(404, 'User not found');
+    }
+    if (target.role === 'ADMIN') {
+      throw new HttpError(403, 'Admin users cannot be deleted');
+    }
+
+    const user = await UserModel.softDeleteById(idResult.value);
+
+    // Invalidate the deleted user's sessions immediately so their cookies
+    // stop working. Without this, the cookie is still accepted until it
+    // expires (7 days) even though the user is marked deleted.
+    await prisma.session.deleteMany({ where: { userId: idResult.value } });
+
+    res.json({ user });
   }),
 };

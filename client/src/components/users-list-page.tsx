@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
-import { fetchUsers, type RosterUser, type Role } from '@/api';
-import { Search, Copy, Check, Mail, UserPlus, Pencil, X } from 'lucide-react';
+import { fetchUsers, deleteUser, type RosterUser, type Role } from '@/api';
+import { Search, Copy, Check, Mail, UserPlus, Pencil, X, Trash2 } from 'lucide-react';
 import { EditUserForm } from '@/components/edit-user-form';
+import { useAuth } from '@/lib/auth';
+import { ConfirmationDialog } from '@/components/confirmation-dialog';
 import {
   Table,
   TableBody,
@@ -75,10 +77,28 @@ function RoleBadge({ role }: { role: Role }) {
   );
 }
 
+/** Rendered in place of the presence pulse for soft-deleted users. */
+function DeactivatedBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm text-[#6B6860]">
+      <span className="relative inline-flex size-2">
+        <span className="relative inline-flex size-2 rounded-full bg-[#C7C4BB]" />
+      </span>
+      Deactivated
+    </span>
+  );
+}
+
 export function UsersListPage() {
   const [query, setQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<RosterUser | null>(null);
+  const [deletingUser, setDeletingUser] = useState<RosterUser | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const { user: currentUser } = useAuth();
+  const queryClient = useQueryClient();
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   // The roster lives in the QueryClient cache. `useQuery` owns loading, error,
   // retries, and refetch — no manual state, no cancellation flags.
@@ -88,6 +108,8 @@ export function UsersListPage() {
   });
 
   const users = data?.users ?? [];
+
+  console.log({ users });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -115,6 +137,31 @@ export function UsersListPage() {
     }
   };
 
+  const confirmDelete = async () => {
+    if (!deletingUser) return;
+    setDeletePending(true);
+    setDeleteError(null);
+    try {
+      await deleteUser(deletingUser.id);
+      // The roster query is now stale — refetch so the row updates (badge
+      // change, or it disappears if you later choose to hide deleted users).
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      setDeletingUser(null);
+    } catch (err) {
+      // The server sends the human-readable message in the JSON body
+      // (see api-client conventions in CLAUDE.md).
+      const message = err instanceof Error ? err.message : 'Failed to delete user';
+      setDeleteError(message);
+    } finally {
+      setDeletePending(false);
+    }
+  };
+
+  // Whether the delete button for a given user should be interactive. Three
+  // reasons to disable: the current user isn't an admin, the target is an
+  // admin (admins can't be deleted), or the target is already deleted.
+  const canDelete = (target: RosterUser) => target.role !== 'ADMIN' && !target.deletedAt;
+
   return (
     <main className="crew flex-1 bg-[#F7F6F1] text-[#16150F]">
       <div className="mx-auto w-full max-w-5xl px-6 py-10">
@@ -138,7 +185,7 @@ export function UsersListPage() {
 
         <div className="w-full flex items-center justify-between">
           {/* Search */}
-          <div className="relative mb-8 max-w-sm">
+          <div className="relative mb-8 max-w-sm sm:min-w-sm">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-[#6B6860]" />
             <Input
               value={query}
@@ -157,16 +204,59 @@ export function UsersListPage() {
           </Link>
         </div>
 
-        {/* States */}
+        {/* Loading state — mirrors the real table layout so the page
+            doesn't reflow when data arrives. Each skeleton row matches the
+            column proportions of a roster row. */}
         {isLoading && (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-44 animate-pulse rounded-xl border border-[#E4E1D7] bg-white"
-              />
-            ))}
-          </div>
+          <Table className="rounded-xl border border-[#E4E1D7] bg-white">
+            <TableHeader>
+              <TableRow className="border-[#E4E1D7]">
+                <TableHead className="pl-5 text-[#6B6860]">Agent</TableHead>
+                <TableHead className="text-[#6B6860]">Role</TableHead>
+                <TableHead className="text-[#6B6860]">Email</TableHead>
+                <TableHead className="text-[#6B6860]">Status</TableHead>
+                <TableHead className="text-[#6B6860]">Station log</TableHead>
+                <TableHead className="pr-5 text-right text-[#6B6860]">Contact</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i} className="border-[#E4E1D7]">
+                  <TableCell className="pl-5">
+                    <div className="flex items-center gap-3">
+                      <span className="size-9 animate-pulse rounded-lg bg-[#E4E1D7]" />
+                      <div className="flex flex-col gap-1.5">
+                        <span className="h-3 w-28 animate-pulse rounded bg-[#E4E1D7]" />
+                        <span className="h-2.5 w-20 animate-pulse rounded bg-[#E4E1D7]" />
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="h-5 w-14 animate-pulse rounded-md bg-[#E4E1D7]" />
+                  </TableCell>
+                  <TableCell>
+                    <span className="h-3 w-40 animate-pulse rounded bg-[#E4E1D7]" />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="size-2 animate-pulse rounded-full bg-[#E4E1D7]" />
+                      <span className="h-3 w-14 animate-pulse rounded bg-[#E4E1D7]" />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="h-3 w-24 animate-pulse rounded bg-[#E4E1D7] font-mono" />
+                  </TableCell>
+                  <TableCell className="pr-5">
+                    <div className="inline-flex justify-end gap-1">
+                      <span className="size-7 animate-pulse rounded-md bg-[#E4E1D7]" />
+                      <span className="size-7 animate-pulse rounded-md bg-[#E4E1D7]" />
+                      <span className="size-7 animate-pulse rounded-md bg-[#E4E1D7]" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
 
         {isError && (
@@ -190,14 +280,11 @@ export function UsersListPage() {
         {editingUser && (
           <div className="fixed inset-0 z-40 flex justify-end">
             {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-black/20"
-              onClick={() => setEditingUser(null)}
-            />
+            <div className="absolute inset-0 bg-black/20" onClick={() => setEditingUser(null)} />
             {/* Panel */}
             <div
               className="relative z-50 flex w-full max-w-md flex-col border-l border-[#E4E1D7] bg-white shadow-xl"
-              style={{ animation: "fade-in 0.2s ease-out both" }}
+              style={{ animation: 'fade-in 0.2s ease-out both' }}
             >
               <div className="flex items-center justify-between border-b border-[#E4E1D7] px-5 py-4">
                 <div className="flex items-center gap-2.5">
@@ -229,6 +316,34 @@ export function UsersListPage() {
         )}
 
         {/* Roster table */}
+        {/* Delete error banner — shown inline so the user can retry or seek
+            help without dismissing a toast. */}
+        {deleteError && (
+          <div className="mb-4 rounded-xl border border-[#E4E1D7] bg-white px-5 py-4 text-sm text-[#6B6860]">
+            <span className="font-medium text-[#B94A3A]">Couldn&rsquo;t delete.</span> {deleteError}
+          </div>
+        )}
+
+        {/* Confirmation dialog for deleting a crew member. Rendered as an overlay
+            on top of the page — it's always available when `deletingUser` is
+            set, regardless of whether the table is showing. */}
+        <ConfirmationDialog
+          open={!!deletingUser}
+          onCancel={() => setDeletingUser(null)}
+          onConfirm={confirmDelete}
+          title="Deactivate this crew member?"
+          confirmLabel="Deactivate"
+          confirmPending={deletePending}
+        >
+          {deletingUser && (
+            <>
+              <strong>{deletingUser.name ?? deletingUser.email}</strong> will be soft-deleted. Their
+              sessions are revoked immediately and they won&rsquo;t be able to sign in again — but
+              the record is retained for audit.
+            </>
+          )}
+        </ConfirmationDialog>
+
         {!isLoading && !isError && filtered.length > 0 && (
           <Table className="rounded-xl border border-[#E4E1D7] bg-white">
             <TableHeader>
@@ -238,7 +353,7 @@ export function UsersListPage() {
                 <TableHead className="text-[#6B6860]">Email</TableHead>
                 <TableHead className="text-[#6B6860]">Status</TableHead>
                 <TableHead className="text-[#6B6860]">Station log</TableHead>
-                <TableHead className="pr-5 text-right text-[#6B6860]">Contact</TableHead>
+                <TableHead className="pr-5 text-right text-[#6B6860]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -280,23 +395,27 @@ export function UsersListPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="relative inline-flex items-center gap-2">
-                        <span className="relative flex size-2">
-                          {presence === 'active' && (
-                            <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#2F7D4F] opacity-60" />
-                          )}
-                          <span
-                            className={`relative inline-flex size-2 rounded-full ${
-                              presence === 'active'
-                                ? 'bg-[#2F7D4F]'
-                                : presence === 'idle'
-                                  ? 'bg-amber-500'
-                                  : 'bg-[#C7C4BB]'
-                            }`}
-                          />
+                      {user.deletedAt ? (
+                        <DeactivatedBadge />
+                      ) : (
+                        <span className="relative inline-flex items-center gap-2">
+                          <span className="relative flex size-2">
+                            {presence === 'active' && (
+                              <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#2F7D4F] opacity-60" />
+                            )}
+                            <span
+                              className={`relative inline-flex size-2 rounded-full ${
+                                presence === 'active'
+                                  ? 'bg-[#2F7D4F]'
+                                  : presence === 'idle'
+                                    ? 'bg-amber-500'
+                                    : 'bg-[#C7C4BB]'
+                              }`}
+                            />
+                          </span>
+                          <span className="text-sm text-[#6B6860]">{presenceText[presence]}</span>
                         </span>
-                        <span className="text-sm text-[#6B6860]">{presenceText[presence]}</span>
-                      </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <span className="font-mono text-xs tracking-tight text-[#6B6860]">
@@ -313,13 +432,36 @@ export function UsersListPage() {
                         >
                           <Pencil className="size-3.5" />
                         </button>
-                        <a
+                        {/* <a
                           href={`mailto:${user.email}`}
                           title={`Email ${user.name ?? user.email}`}
                           className="inline-grid size-7 place-items-center rounded-md border border-transparent text-[#1E3A5F] transition-colors hover:border-[#E4E1D7] hover:bg-[#F7F6F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30"
                         >
                           <Mail className="size-3.5" />
-                        </a>
+                        </a> */}
+                        {canDelete(user) ? (
+                          <button
+                            type="button"
+                            onClick={() => setDeletingUser(user)}
+                            title={`Delete ${user.name ?? user.email}`}
+                            className="inline-grid size-7 place-items-center rounded-md border border-transparent text-[#6B6860] transition-colors hover:border-[#E4E1D7] hover:bg-[#F7F6F1] hover:text-[#B94A3A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        ) : (
+                          <span
+                            className="inline-grid size-7 cursor-not-allowed place-items-center rounded-md text-[#C7C4BB]"
+                            title={
+                              !isAdmin
+                                ? 'Admins only'
+                                : user.role === 'ADMIN'
+                                  ? 'Admins cannot be deleted'
+                                  : 'Already deleted'
+                            }
+                          >
+                            <Trash2 className="size-3.5" />
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

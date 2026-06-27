@@ -4,6 +4,8 @@ import { auth } from '../../auth';
 /**
  * The fields a roster response is allowed to expose. Selecting explicitly means
  * a future column added to User never leaks through the API by accident.
+ * `deletedAt` is included so the client can render a "deactivated" badge for
+ * soft-deleted users.
  */
 export const ROSTER_SELECT = {
   id: true,
@@ -13,6 +15,7 @@ export const ROSTER_SELECT = {
   image: true,
   emailVerified: true,
   createdAt: true,
+  deletedAt: true,
 } as const;
 
 export type RosterUser = {
@@ -23,6 +26,7 @@ export type RosterUser = {
   image: string | null;
   emailVerified: boolean;
   createdAt: Date;
+  deletedAt: Date | null;
 };
 
 export type CreateUserInput = {
@@ -46,7 +50,13 @@ export type UpdateUserInput = {
  * filters, etc.) live in one spot.
  */
 export const UserModel = {
-  /** The full crew roster, most-recently-joined first. */
+  /**
+   * The full crew roster, most-recently-joined first. Soft-deleted users are
+   * included (with `deletedAt` set) so the client can render them with a
+   * "deactivated" badge — but never expose them as active crew. Filtering by
+   * hand rather than `where: { deletedAt: null }` keeps the choice explicit
+   * and easy to flip.
+   */
   async findRoster(): Promise<RosterUser[]> {
     return prisma.user.findMany({
       select: ROSTER_SELECT,
@@ -58,6 +68,26 @@ export const UserModel = {
   async findById(id: string): Promise<RosterUser | null> {
     return prisma.user.findUnique({
       where: { id },
+      select: ROSTER_SELECT,
+    });
+  },
+
+  /**
+   * Soft-delete a user by stamping `deletedAt`. Returns the updated row (with
+   * `deletedAt` set), or null if the user doesn't exist or is already deleted.
+   * The caller is responsible for refusing to delete admins — that rule lives
+   * in the controller, not here.
+   */
+  async softDeleteById(id: string): Promise<RosterUser | null> {
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, deletedAt: true },
+    });
+    if (!existing || existing.deletedAt) return null;
+
+    return prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() },
       select: ROSTER_SELECT,
     });
   },

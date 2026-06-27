@@ -15,6 +15,7 @@ export interface RosterUser {
   image: string | null;
   emailVerified: boolean;
   createdAt: string;
+  deletedAt: string | null;
 }
 
 export interface UsersResponse {
@@ -75,5 +76,15 @@ export async function updateUser(
   input: UpdateUserInput,
 ): Promise<UserResponse> {
   const { data } = await apiClient.put<UserResponse>(`/api/users/${id}`, input);
+  return data;
+}
+
+/**
+ * Soft-delete a crew member. The server stamps `deletedAt` and invalidates
+ * the target's sessions so their cookies stop working immediately. The server
+ * returns 403 for admin targets and 404 for already-deleted or missing users.
+ */
+export async function deleteUser(id: string): Promise<UserResponse> {
+  const { data } = await apiClient.delete<UserResponse>(`/api/users/${id}`);
   return data;
 }
