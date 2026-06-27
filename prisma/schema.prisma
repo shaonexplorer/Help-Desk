@@ -24,9 +24,11 @@ model User {
   emailVerified Boolean   @default(false)
   image         String?
   updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
   sessions      Session[]
   accounts      Account[]
 
+  @@index([deletedAt])
   @@map("user")
 }
 

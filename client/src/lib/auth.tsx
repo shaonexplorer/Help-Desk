@@ -10,6 +10,7 @@ interface SessionUser {
   name?: string | null;
   email: string;
   image?: string | null;
+  role?: 'ADMIN' | 'AGENT';
 }
 
 interface AuthState {
