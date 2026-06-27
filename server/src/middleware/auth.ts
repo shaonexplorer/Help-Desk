@@ -1,5 +1,6 @@
 import { fromNodeHeaders } from 'better-auth/node';
 import { auth } from '../auth';
+import { HttpError } from '../core/http-error';
 import type { NextFunction, Request, Response } from 'express';
 
 /**
@@ -16,10 +17,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     const body = (await resp.json()) as { session?: unknown; user?: unknown } | null;
 
     if (!body?.session) {
-      const err = new Error('Unauthorized') as Error & { status?: number };
-      err.status = 401;
-
-      throw err;
+      throw new HttpError(401, 'Unauthorized');
     }
 
     // Attach downstream handlers can read off.

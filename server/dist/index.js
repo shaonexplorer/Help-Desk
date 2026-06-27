@@ -4,7 +4,9 @@ import 'dotenv/config';
 import errorHandler from './middleware/errorHandler';
 import { requireAuth } from './middleware/auth';
 import { auth } from './auth';
-import apiRouter from './routes/api';
+import { compose } from './core/router';
+import { healthModule } from './modules/health';
+import { usersModule } from './modules/users';
 import path from 'path';
 import { toNodeHandler } from 'better-auth/node';
 const app = express();
@@ -28,9 +30,10 @@ app.use(express.json());
 app.all('/api/auth/*', toNodeHandler(auth));
 // Serve static files from the built React app (when built)
 app.use(express.static(path.join(process.cwd(), '..', '..', 'client', 'dist')));
-// API routes — guarded by Better Auth session by default. /api/auth/* above
-// stays public so sign-in/sign-up/sign-out work.
-app.use('/api', requireAuth, apiRouter);
+// API routes — every feature module composes here, then the whole tree is gated
+// behind Better Auth. /api/auth/* above stays public so sign-in/sign-up/sign-out
+// work. Adding a future module (tickets, ...) is one import + one line here.
+app.use('/api', requireAuth, compose([healthModule, usersModule]));
 app.use(errorHandler);
 // Fallback for client‑side routing (serve index.html)
 app.get('*', (_req, res) => {
