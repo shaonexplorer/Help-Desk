@@ -93,6 +93,25 @@ export const UserModel = {
   },
 
   /**
+   * Reactivate a soft-deleted user by clearing `deletedAt`. Returns the updated
+   * row (with `deletedAt: null`), or null if the user doesn't exist or isn't
+   * currently deleted.
+   */
+  async reactivateById(id: string): Promise<RosterUser | null> {
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, deletedAt: true },
+    });
+    if (!existing || !existing.deletedAt) return null;
+
+    return prisma.user.update({
+      where: { id },
+      data: { deletedAt: null },
+      select: ROSTER_SELECT,
+    });
+  },
+
+  /**
    * Create a new crew member. Uses Better Auth's own sign-up handler (a
    * synthetic Request through `auth.handler`) so the password hash and the
    * linked Account row are created exactly as the client sign-in flow expects —

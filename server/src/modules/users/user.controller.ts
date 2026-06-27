@@ -96,4 +96,29 @@ export const UserController = {
 
     res.json({ user });
   }),
+
+  /**
+   * Reactivate a soft-deleted crew member. Two guard-rails:
+   *  - 404 if the user doesn't exist.
+   *  - 400 if the user isn't currently deleted (nothing to reactivate).
+   * Admins can be reactivated (they were never deleted in the first place, so
+   * this is a defensive check — the 404 branch handles the "not found" case).
+   */
+  reactivate: asyncHandler(async (req: Request, res: Response) => {
+    const idResult = validateIdParam({ id: req.params.id });
+    if (!idResult.ok) throw new HttpError(400, idResult.errors.join(', '));
+
+    const target = await prisma.user.findUnique({
+      where: { id: idResult.value },
+      select: { id: true, deletedAt: true },
+    });
+
+    if (!target) throw new HttpError(404, 'User not found');
+    if (!target.deletedAt) {
+      throw new HttpError(400, 'User is not deleted');
+    }
+
+    const user = await UserModel.reactivateById(idResult.value);
+    res.json({ user });
+  }),
 };
