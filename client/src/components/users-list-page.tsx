@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { fetchUsers, type RosterUser, type Role } from '@/api';
-import { Search, Copy, Check, Mail, UserPlus } from 'lucide-react';
+import { Search, Copy, Check, Mail, UserPlus, Pencil, X } from 'lucide-react';
+import { EditUserForm } from '@/components/edit-user-form';
 import {
   Table,
   TableBody,
@@ -77,6 +78,7 @@ function RoleBadge({ role }: { role: Role }) {
 export function UsersListPage() {
   const [query, setQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<RosterUser | null>(null);
 
   // The roster lives in the QueryClient cache. `useQuery` owns loading, error,
   // retries, and refetch — no manual state, no cancellation flags.
@@ -184,6 +186,48 @@ export function UsersListPage() {
           </div>
         )}
 
+        {/* Edit slide-over */}
+        {editingUser && (
+          <div className="fixed inset-0 z-40 flex justify-end">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/20"
+              onClick={() => setEditingUser(null)}
+            />
+            {/* Panel */}
+            <div
+              className="relative z-50 flex w-full max-w-md flex-col border-l border-[#E4E1D7] bg-white shadow-xl"
+              style={{ animation: "fade-in 0.2s ease-out both" }}
+            >
+              <div className="flex items-center justify-between border-b border-[#E4E1D7] px-5 py-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid size-7 place-items-center rounded-md bg-[#E8EEF5] text-[#1E3A5F]">
+                    <Pencil className="size-3.5" />
+                  </span>
+                  <h2 className="text-base font-medium tracking-tight text-[#16150F]">
+                    Edit member
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  title="Close"
+                  className="grid size-7 place-items-center rounded-md text-[#6B6860] transition-colors hover:bg-[#F7F6F1] hover:text-[#16150F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5">
+                <EditUserForm
+                  user={editingUser}
+                  onSuccess={() => setEditingUser(null)}
+                  onCancel={() => setEditingUser(null)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Roster table */}
         {!isLoading && !isError && filtered.length > 0 && (
           <Table className="rounded-xl border border-[#E4E1D7] bg-white">
@@ -260,13 +304,23 @@ export function UsersListPage() {
                       </span>
                     </TableCell>
                     <TableCell className="pr-5 text-right">
-                      <a
-                        href={`mailto:${user.email}`}
-                        title={`Email ${user.name ?? user.email}`}
-                        className="inline-grid size-7 place-items-center rounded-md border border-transparent text-[#1E3A5F] transition-colors hover:border-[#E4E1D7] hover:bg-[#F7F6F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30"
-                      >
-                        <Mail className="size-3.5" />
-                      </a>
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingUser(user)}
+                          title={`Edit ${user.name ?? user.email}`}
+                          className="inline-grid size-7 place-items-center rounded-md border border-transparent text-[#1E3A5F] transition-colors hover:border-[#E4E1D7] hover:bg-[#F7F6F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30"
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <a
+                          href={`mailto:${user.email}`}
+                          title={`Email ${user.name ?? user.email}`}
+                          className="inline-grid size-7 place-items-center rounded-md border border-transparent text-[#1E3A5F] transition-colors hover:border-[#E4E1D7] hover:bg-[#F7F6F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30"
+                        >
+                          <Mail className="size-3.5" />
+                        </a>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { authClient } from '@/lib/auth-client';
-import { messageFor } from '@/lib/auth-errors';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,8 +52,14 @@ export function LoginForm() {
             navigate(from, { replace: true });
           },
           onError: (ctx) => {
-            const code = ctx.error.code as keyof typeof authClient.$ERROR_CODES | undefined;
-            setServerError(messageFor(code ?? ''));
+            // BetterFetchError has no `code`; the server's message is in
+            // ctx.error.error (the parsed JSON body { error: "..." }).
+            const body = ctx.error.error as { error?: string } | undefined;
+            const message =
+              (typeof body?.error === "string" && body.error) ||
+              (typeof ctx.error?.message === "string" && ctx.error.message) ||
+              "Something went wrong.";
+            setServerError(message);
           },
         },
       );
