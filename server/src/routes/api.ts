@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { compose } from '../core/router';
 import { healthModule } from '../modules/health';
 import { usersModule } from '../modules/users';
+import { ticketsModule } from '../modules/tickets';
 
 /**
  * Build the composed API router. The actual mount point lives in index.ts, which
@@ -11,5 +12,5 @@ import { usersModule } from '../modules/users';
  * one line in index.ts.
  */
 export function buildApiRouter(): Router {
-  return compose([healthModule, usersModule]);
+  return compose([healthModule, usersModule, ticketsModule]);
 }

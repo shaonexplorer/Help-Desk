@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorepo is set up and runs. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain exists (list + detail + create, admin/agent roles); the core ticket domain does not yet.
+Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorepo is set up and runs. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain exists (list + detail + create, admin/agent roles). The ticket submission domain exists (create endpoint + form page); ticket list/detail/views are not yet built.
 
 ## Common Development Commands
 
@@ -29,7 +29,7 @@ Help-Desk (root)
 ├─ package.json            ← workspace definitions, root scripts
 ├─ tsconfig.base.json      ← shared TypeScript compiler options
 ├─ prisma/
-│  └─ schema.prisma       ← DB schema (User + Role enum, Session, Account, Verification)
+│  └─ schema.prisma       ← DB schema (User + Role enum, TicketPriority enum, TicketStatus enum, Ticket, Session, Account, Verification)
 │
 ├─ client/                 ← React UI (Vite + TypeScript)
 │  ├─ src/
@@ -37,7 +37,8 @@ Help-Desk (root)
 │  │  ├─ App.tsx            ← Root: AuthProvider + BrowserRouter + Routes
 │  │  ├─ api/               ← Per-domain API modules (mirrors server modules)
 │  │  │  ├─ index.ts        ← Barrel re-export of all API functions/types
-│  │  │  ├─ users.ts        ← fetchUsers, fetchUser, createUser, RosterUser, Role, CreateUserInput
+│  │  │  ├─ users.ts        ← fetchUsers, fetchUser, createUser, updateUser, deleteUser, reactivateUser, RosterUser, Role, CreateUserInput
+│  │  │  ├─ tickets.ts      ← createTicket, Ticket, TicketPriority, TicketCategory, TicketStatus, CreateTicketInput
 │  │  │  └─ health.ts       ← fetchHello, HelloResponse
 │  │  ├─ style.css          ← Tailwind v4 import + @theme tokens + base layer
 │  │  ├─ lib/
@@ -48,13 +49,17 @@ Help-Desk (root)
 │  │  │  ├─ auth-client.ts  ← Better Auth client singleton (createAuthClient)
 │  │  │  └─ auth-errors.ts  ← Error code → user-facing message map
 │  │  └─ components/
-│  │       ├─ app-shell.tsx       ← Shared navbar (brand + Dashboard/Crew nav + sign out)
+│  │       ├─ app-shell.tsx       ← Shared navbar (brand + Dashboard/New Ticket/Crew nav + sign out)
 │  │       ├─ login-page.tsx      ← Split-panel login layout
 │  │       ├─ login-form.tsx      ← Login form (react-hook-form + zod + authClient.signIn)
 │  │       ├─ dashboard.tsx       ← Authenticated home (health probe via useQuery)
-│  │       ├─ users-list-page.tsx ← Crew roster table (roles, presence, useQuery)
+│  │       ├─ users-list-page.tsx ← Crew roster table (roles, presence, soft-delete + reactivate actions, useQuery)
+│  │       ├─ confirmation-dialog.tsx ← Reusable overlay dialog (destructive + confirm variants)
 │  │       ├─ create-user-page.tsx← Dispatch card for adding a new crew member
 │  │       ├─ create-user-form.tsx← react-hook-form + zod (name, email, password, role)
+│  │       ├─ create-ticket-page.tsx← Dispatch card for opening a new ticket
+│  │       ├─ create-ticket-form.tsx← react-hook-form + zod (subject, description, priority, category, assignedToId)
+│  │       ├─ tickets-list-page.tsx ← Ticket blotter with TanStack Table (sorting, filtering, pagination)
 │  │       ├─ protected-route.tsx ← Redirects to /login if no session
 │  │       ├─ public-route.tsx    ← Redirects to / if already logged in
 │  │       └─ ui/                 ← shadcn-style components (Button, Input, Label, Table)
@@ -87,6 +92,12 @@ Help-Desk (root)
    │  │     ├─ user.controller.ts ← UserController.list / getById / create (asyncHandler + HttpError)
    │  │     ├─ user.route.ts      ← mountUsers(router)
    │  │     └─ index.ts           ← exports usersModule: Mountable
+   │  ├─ modules/tickets/
+   │  │  ├─ ticket.model.ts      ← Prisma access + TICKET_SELECT allow-list + createTicket
+   │  │  ├─ ticket.validation.ts ← TICKET_CATEGORIES allowlist + validateCreateTicketBody + ValidationResult
+   │  │  ├─ ticket.controller.ts ← TicketController.create (asyncHandler + HttpError)
+   │  │  ├─ ticket.route.ts      ← mountTickets(router)
+   │  │  └─ index.ts             ← exports ticketsModule: Mountable
    │  ├─ routes/
    │  │  └─ api.ts           ← buildApiRouter() factory (composition root)
    │  └─ middleware/
@@ -173,9 +184,13 @@ All `/api/*` routes except `/api/auth/*` are gated behind `requireAuth` (mounted
 | Route | Module | Notes |
 |-------|--------|-------|
 | `GET /api/hello` | health | Server greeting probe. Returns `{ message }`. |
-| `GET /api/users` | users | Full crew roster, most-recent first. Returns `{ users: RosterUser[] }`. |
+| `GET /api/users` | users | Full crew roster, most-recent first. Returns `{ users: RosterUser[] }`. Soft-deleted users are included with `deletedAt` set so the client can render a "deactivated" badge. |
 | `GET /api/users/:id` | users | Single crew member. Returns `{ user }`, or 404 `{ error }` if not found. |
 | `POST /api/users` | users | Create a new crew member. Body: `name`, `email`, `password`, `role?` (defaults to AGENT). Routes through Better Auth sign-up. Returns 201 `{ user }`, 400 `{ error }` on validation failure, 409 `{ error }` if email already exists. |
+| `DELETE /api/users/:id` | users | Soft-delete a crew member. Stamps `deletedAt` and **deletes the target's session rows** so their cookies stop working immediately. Returns 403 `{ error }` for admin targets, 404 `{ error }` if already deleted or missing. Returns `{ user }` with `deletedAt` set on success. |
+| `POST /api/users/:id/reactivate` | users | Reactivate a soft-deleted crew member. Clears `deletedAt`. Returns 400 `{ error }` if the user isn't currently deleted, 404 `{ error }` if not found. Returns `{ user }` with `deletedAt: null` on success. |
+| `POST /api/tickets` | tickets | Create a new ticket. Body: `subject`, `description`, `priority?` (defaults to MEDIUM), `category`, `assignedToId?`. `createdById` is set from the session. Returns 201 `{ ticket }`, 400 `{ error }` on validation failure or invalid `assignedToId`. |
+| `GET /api/tickets` | tickets | List all tickets, newest first, with `createdBy` and `assignedTo` user names resolved. Returns `{ tickets: TicketWithUsers[] }`. |
 
 Sessions are stored in the DB (`storeSessionInDatabase: true`, 7-day expiry). `User.id` is a `cuid` string, not an autoincrement int.
 
@@ -224,7 +239,8 @@ export const authClient = createAuthClient({
 
 Data fetching uses **axios** (`lib/api-client.ts`) plus **TanStack Query** (`lib/query-client.tsx`). The `api/` folder is split per domain to mirror the server's `modules/`:
 
-- `api/users.ts` — `fetchUsers()`, `fetchUser(id)`, `createUser(input)`, and the `RosterUser` / `Role` / `CreateUserInput` / response types.
+- `api/users.ts` — `fetchUsers()`, `fetchUser(id)`, `createUser(input)`, `updateUser(id, input)`, `deleteUser(id)`, `reactivateUser(id)`, and the `RosterUser` / `Role` / `CreateUserInput` / response types.
+- `api/tickets.ts` — `createTicket(input)`, and the `Ticket` / `TicketPriority` / `TicketCategory` / `TicketStatus` / `CreateTicketInput` / response types.
 - `api/health.ts` — `fetchHello()`.
 - `api/index.ts` — barrel re-export, so components import from `@/api`.
 
@@ -242,6 +258,20 @@ These conventions are the standard pattern for all new features — follow them 
 Pages call the API through `useQuery` (e.g. `users-list-page.tsx` uses queryKey `["users"]`; `dashboard.tsx` uses `["health"]`). To invalidate after a mutation, call `queryClient.invalidateQueries({ queryKey: [...] })`.
 
 **Users list page** (`users-list-page.tsx`): warm-paper surface (`#F7F6F1`) with ink-blue accents (`#1E3A5F`). The "Add member" link sits in a flex row alongside the search bar — search on the left, add member on the right — so the primary action stays visible without scrolling. The create-user page (`create-user-page.tsx`) uses the same visual identity: a dispatch-board card with monospace eyebrow and a `UserPlus` icon header.
+
+### Soft Delete & Reactivate
+
+The crew roster supports soft-delete and reactivation. The `User` Prisma model has a `deletedAt DateTime?` column (indexed). Soft-deleted users are included in the roster with `deletedAt` set so the client renders them with a "Deactivated" badge instead of the presence pulse.
+
+**Server rules** (`server/src/modules/users/user.controller.ts`):
+- `DELETE /api/users/:id` — 403 if target is ADMIN, 404 if missing/already-deleted. Stamps `deletedAt` and **deletes the target's `Session` rows** so their cookies stop working immediately.
+- `POST /api/users/:id/reactivate` — 400 if not currently deleted, 404 if missing. Clears `deletedAt`.
+
+**Client rules** (`client/src/components/users-list-page.tsx`):
+- Delete button (`Trash2`): shown for non-deleted, non-admin users when the current user is an admin. Disabled with tooltip otherwise.
+- Reactivate button (`RotateCcw`): shown for deleted users when the current user is an admin.
+- Both actions go through `ConfirmationDialog` before firing, then invalidate `["users"]`.
+- Inline error banners surface the server's message if either mutation fails.
 
 ## Frontend Notes
 
@@ -266,7 +296,7 @@ To run manually: `npm run seed --workspace=server`.
 
 ## Known Gaps / TODOs
 
-- **No ticket domain** — no Ticket model, routes, or UI; the app does not yet do anything "help desk"-like. (Scaffold a `tickets/` module using `modules/health/` as a template.)
+- **No ticket detail view** — tickets can be listed and created, but there is no detail view or status-update flow yet
 - **No tests** — no test framework installed
 - **No git repo** — no `.git`, no commits, no `.gitignore`
 - **No README** — only this CLAUDE.md documents the project

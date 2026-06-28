@@ -13,6 +13,17 @@ enum Role {
   AGENT
 }
 
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+}
+
 // Example model
 
 model User {
@@ -25,8 +36,10 @@ model User {
   image         String?
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
-  sessions      Session[]
-  accounts      Account[]
+  sessions         Session[]
+  accounts         Account[]
+  tickets          Ticket[] @relation("UserTickets")
+  assignedTickets  Ticket[] @relation("UserAssignedTickets")
 
   @@index([deletedAt])
   @@map("user")
@@ -78,4 +91,24 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+model Ticket {
+  id            String         @id @default(cuid())
+  subject       String
+  description   String
+  priority      TicketPriority @default(MEDIUM)
+  category      String
+  status        TicketStatus   @default(OPEN)
+  createdById   String
+  createdBy     User           @relation("UserTickets", fields: [createdById], references: [id])
+  assignedToId  String?
+  assignedTo    User?          @relation("UserAssignedTickets", fields: [assignedToId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([status])
+  @@map("ticket")
 }
