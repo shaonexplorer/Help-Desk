@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { fetchUsers, deleteUser, reactivateUser, type RosterUser, type Role } from '@/api';
 import { Search, Copy, Check, UserPlus, Pencil, X, Trash2, RotateCcw } from 'lucide-react';
 import { EditUserForm } from '@/components/edit-user-form';
-import { useAuth } from '@/lib/auth';
 import { ConfirmationDialog } from '@/components/confirmation-dialog';
 import {
   Table,
@@ -99,9 +98,7 @@ export function UsersListPage() {
   const [reactivatingUser, setReactivatingUser] = useState<RosterUser | null>(null);
   const [reactivatePending, setReactivatePending] = useState(false);
   const [reactivateError, setReactivateError] = useState<string | null>(null);
-  const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
-  const isAdmin = currentUser?.role === 'ADMIN';
 
   // The roster lives in the QueryClient cache. `useQuery` owns loading, error,
   // retries, and refetch — no manual state, no cancellation flags.

@@ -22,6 +22,9 @@ enum TicketPriority {
 
 enum TicketStatus {
   OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
 }
 
 // Example model

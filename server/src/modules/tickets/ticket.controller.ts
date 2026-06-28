@@ -3,7 +3,7 @@ import { asyncHandler, HttpError } from '../../core';
 import { TicketModel } from './ticket.model';
 import { UserModel } from '../users/user.model';
 import { validateIdParam } from '../users/user.validation';
-import { validateCreateTicketBody, validateTicketListQuery } from './ticket.validation';
+import { validateCreateTicketBody, validateTicketListQuery, validateUpdateTicketBody } from './ticket.validation';
 
 /**
  * Ticket controller — owns the HTTP layer for ticket resources. It shapes the
@@ -53,5 +53,46 @@ export const TicketController = {
     );
 
     res.status(201).json({ ticket });
+  }),
+
+  /**
+   * Update a ticket's assignee and/or status. Both fields are optional in the
+   * body, but at least one must be present (enforced by the validator). When a
+   * non-null `assignedToId` is provided, it must reference a live, non-deleted
+   * user — the same guard as create. `assignedToId: null` is allowed and pulls
+   * the ticket back to the bench. Returns the full ticket with relations so the
+   * client can re-render the rail without a separate fetch.
+   */
+  update: asyncHandler(async (req: Request, res: Response) => {
+    const idResult = validateIdParam({ id: req.params.id });
+    if (!idResult.ok) throw new HttpError(400, idResult.errors.join(', '));
+
+    const bodyResult = validateUpdateTicketBody(req.body);
+    if (!bodyResult.ok) throw new HttpError(400, bodyResult.errors.join(', '));
+
+    const { assignedToId, status } = bodyResult.value;
+
+    // Validate assignedToId if a non-null id was provided. null means
+    // "unassign" and needs no lookup; undefined means "don't touch it".
+    if (assignedToId) {
+      const assignee = await UserModel.findById(assignedToId);
+      if (!assignee) {
+        throw new HttpError(400, '"assignedToId" does not reference a valid user');
+      }
+      if (assignee.deletedAt) {
+        throw new HttpError(400, 'Assigned-to user is deactivated');
+      }
+    }
+
+    const ticket = await TicketModel.updateTicket(idResult.value, {
+      // Only pass keys the client actually sent. undefined means "no change";
+      // null means "explicitly clear the assignee".
+      ...(assignedToId !== undefined ? { assignedToId } : {}),
+      ...(status !== undefined ? { status } : {}),
+    });
+
+    if (!ticket) throw new HttpError(404, 'Ticket not found');
+
+    res.json({ ticket });
   }),
 };

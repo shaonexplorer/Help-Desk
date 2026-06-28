@@ -14,6 +14,7 @@ import {
   type TicketWithUsers,
   type TicketPriority,
   type TicketCategory,
+  type TicketStatus,
   type TicketSortField,
   type SortOrder,
 } from '@/api';
@@ -110,6 +111,47 @@ function CategoryChip({ category }: { category: TicketCategory }) {
   return (
     <span className="inline-flex items-center rounded border border-[#E4E1D7] bg-[#F7F6F1] px-1.5 py-0.5 text-[11px] tracking-tight text-[#6B6860]">
       {CATEGORY_LABELS[category]}
+    </span>
+  );
+}
+
+// ─── Status pill ────────────────────────────────────────────────────────────
+//
+// A color-coded case flag that matches the detail page's case flag exactly, so
+// a Resolved ticket reads the same way in the blotter and the opened file. Each
+// state gets its own dot + tinted pill: slate for Open (queued), amber for In
+// Progress (active work), green for Resolved (settled), muted ink for Closed
+// (archived). Same 11px utility scale as the priority badge and category chip —
+// the three triage markers read as one cohesive row.
+
+const STATUS_DOT: Record<TicketStatus, string> = {
+  OPEN: 'bg-[#6B6860]',
+  IN_PROGRESS: 'bg-[#D4943A]',
+  RESOLVED: 'bg-[#2F7D4F]',
+  CLOSED: 'bg-[#1E3A5F]/40',
+};
+
+const STATUS_PILL: Record<TicketStatus, string> = {
+  OPEN: 'border-[#C7C4BB] bg-[#F7F6F1] text-[#6B6860]',
+  IN_PROGRESS: 'border-[#D4943A]/30 bg-[#FEF7EC] text-[#8B5E1A]',
+  RESOLVED: 'border-[#2F7D4F]/30 bg-[#EEF7F1] text-[#2F7D4F]',
+  CLOSED: 'border-[#E4E1D7] bg-[#F7F6F1] text-[#1E3A5F]/60',
+};
+
+const STATUS_LABELS: Record<TicketStatus, string> = {
+  OPEN: 'Open',
+  IN_PROGRESS: 'In progress',
+  RESOLVED: 'Resolved',
+  CLOSED: 'Closed',
+};
+
+function StatusPill({ status }: { status: TicketStatus }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 text-[11px] font-semibold tracking-tight ${STATUS_PILL[status]}`}
+    >
+      <span className={`size-1.5 shrink-0 rounded-full ${STATUS_DOT[status]}`} />
+      {STATUS_LABELS[status]}
     </span>
   );
 }
@@ -218,12 +260,7 @@ const columns = [
   }),
   columnHelper.accessor('status', {
     header: 'Status',
-    cell: (info) => (
-      <span className="inline-flex items-center gap-1.5 text-sm text-[#16150F]">
-        <span className="size-1.5 rounded-full bg-[#2F7D4F]" />
-        {info.getValue().charAt(0) + info.getValue().slice(1).toLowerCase()}
-      </span>
-    ),
+    cell: (info) => <StatusPill status={info.getValue()} />,
     enableSorting: false,
   }),
   columnHelper.accessor('assignedTo', {

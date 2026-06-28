@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-Help-Desk is a full-stack ticketing app in **active development**. The monorepo is set up and runs with a git repo initialized. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain is complete (list + detail + create + edit + soft-delete + reactivate, admin/agent roles with badges and presence). The ticket domain exists with read-and-create flow (server-paginated/sorted/filtered blotter via TanStack Table, incident file detail page, dispatch form creation page); **ticket status-update and reassignment flow are not yet built** — `TicketStatus` is still a single `OPEN` value, and the detail page is read-only.
+Help-Desk is a full-stack ticketing app in **active development**. The monorepo is set up and runs with a git repo initialized. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain is complete (list + detail + create + edit + soft-delete + reactivate, admin/agent roles with badges and presence). The ticket domain is complete end-to-end: server-paginated/sorted/filtered blotter via TanStack Table, incident file detail page with **in-rail dispatch controls** (status segmented control + assignee delegate card with a crew slide-over), and dispatch form creation page. Tickets move through a four-state lifecycle (`OPEN → IN_PROGRESS → RESOLVED → CLOSED`) and can be reassigned (or unassigned) from the detail page.
 
 ## Common Development Commands
 
@@ -38,7 +38,7 @@ Help-Desk (root)
 │  │  ├─ api/               ← Per-domain API modules (mirrors server modules)
 │  │  │  ├─ index.ts        ← Barrel re-export of all API functions/types
 │  │  │  ├─ users.ts        ← fetchUsers, fetchUser, createUser, updateUser, deleteUser, reactivateUser, RosterUser, Role, CreateUserInput
-│  │  │  ├─ tickets.ts      ← fetchTickets, createTicket, Ticket, TicketWithUsers, TicketUser, TicketPriority, TicketCategory, TicketStatus, CreateTicketInput
+│  │  │  ├─ tickets.ts      ← fetchTickets, fetchTicket, createTicket, updateTicket, Ticket, TicketWithUsers, TicketUser, TicketPriority, TicketCategory, TicketStatus, CreateTicketInput, UpdateTicketInput
 │  │  │  └─ health.ts       ← fetchHello, HelloResponse
 │  │  ├─ style.css          ← Tailwind v4 import + @theme tokens + base layer
 │  │  ├─ lib/
@@ -195,6 +195,7 @@ All `/api/*` routes except `/api/auth/*` are gated behind `requireAuth` (mounted
 | `GET /api/tickets` | tickets | Paginated, sorted, filtered ticket list. Query params: `page` (default 1), `limit` (10/20/50, default 10), `sort` (`createdAt`/`subject`/`priority`, default `createdAt`), `order` (`asc`/`desc`, default `desc`), `priority` (comma-separated, e.g. `HIGH,URGENT`), `category` (comma-separated, e.g. `BUG,SUPPORT`), `assignee` (single id or `__unassigned__`), `search` (text search across subject, creator/assignee name/email). Returns `{ tickets: TicketWithUsers[], meta: { page, limit, total, totalPages } }`. |
 | `GET /api/tickets/:id` | tickets | Single ticket with `createdBy` and `assignedTo` user names resolved. Returns `{ ticket: TicketWithUsers }`, or 404 `{ error }` if not found. |
 | `POST /api/tickets` | tickets | Create a new ticket. Body: `subject`, `description`, `priority?` (defaults to MEDIUM), `category`, `assignedToId?`. `createdById` is set from the session. Returns 201 `{ ticket }`, 400 `{ error }` on validation failure or invalid `assignedToId`. |
+| `PATCH /api/tickets/:id` | tickets | Update a ticket's assignee and/or status. Body: `assignedToId?` (non-empty string to assign, `null` to unassign, omit to leave unchanged) and/or `status?` (one of `OPEN`/`IN_PROGRESS`/`RESOLVED`/`CLOSED`). At least one field required. Validates a non-null `assignedToId` references a live, non-deleted user. Returns `{ ticket }` with `createdBy`/`assignedTo` relations resolved, 400 `{ error }` on validation failure or invalid assignee, 404 `{ error }` if not found. |
 
 Sessions are stored in the DB (`storeSessionInDatabase: true`, 7-day expiry). `User.id` is a `cuid` string, not an autoincrement int.
 
@@ -244,7 +245,7 @@ export const authClient = createAuthClient({
 Data fetching uses **axios** (`lib/api-client.ts`) plus **TanStack Query** (`lib/query-client.tsx`). The `api/` folder is split per domain to mirror the server's `modules/`:
 
 - `api/users.ts` — `fetchUsers()`, `fetchUser(id)`, `createUser(input)`, `updateUser(id, input)`, `deleteUser(id)`, `reactivateUser(id)`, and the `RosterUser` / `Role` / `CreateUserInput` / response types.
-- `api/tickets.ts` — `fetchTickets()`, `createTicket(input)`, and the `Ticket` / `TicketWithUsers` / `TicketUser` / `TicketPriority` / `TicketCategory` / `TicketStatus` / `CreateTicketInput` / response types.
+- `api/tickets.ts` — `fetchTickets()`, `fetchTicket(id)`, `createTicket(input)`, `updateTicket(id, input)`, and the `Ticket` / `TicketWithUsers` / `TicketUser` / `TicketPriority` / `TicketCategory` / `TicketStatus` / `CreateTicketInput` / `UpdateTicketInput` / response types.
 - `api/health.ts` — `fetchHello()`.
 - `api/index.ts` — barrel re-export, so components import from `@/api`.
 
@@ -283,12 +284,15 @@ The crew roster supports soft-delete and reactivation. The `User` Prisma model h
 
 ### Ticket Domain
 
-The ticket domain handles help-desk incidents. Each ticket has a subject, description, priority, category, status, creator, and optional assignee. The Prisma model uses two enums (`TicketPriority`: LOW/MEDIUM/HIGH/URGENT, `TicketStatus`: OPEN) and a plain `String` column for category validated against a code-level allowlist (`TICKET_CATEGORIES` in `ticket.validation.ts`). This avoids a migration every time a category is added; the allowlist can be moved to a DB table later.
+The ticket domain handles help-desk incidents. Each ticket has a subject, description, priority, category, status, creator, and optional assignee. The Prisma model uses two enums (`TicketPriority`: LOW/MEDIUM/HIGH/URGENT, `TicketStatus`: OPEN/IN_PROGRESS/RESOLVED/CLOSED) and a plain `String` column for category validated against a code-level allowlist (`TICKET_CATEGORIES` in `ticket.validation.ts`). This avoids a migration every time a category is added; the allowlist can be moved to a DB table later.
+
+**Status lifecycle** (`server/src/modules/tickets/ticket.validation.ts`): `OPEN`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`. A typed union `TicketStatus` is derived from the `TICKET_STATUSES` array and shared with the client. To add a state, update both the `TICKET_STATUSES` array in `ticket.validation.ts` and the `TicketStatus` enum in `prisma/schema.prisma`, then run `npx prisma db push`.
 
 **Category allowlist** (`server/src/modules/tickets/ticket.validation.ts`): `BUG`, `FEATURE_REQUEST`, `SUPPORT`, `BILLING`, `OTHER`. A typed union `TicketCategory` is derived from the array and shared with the client. To add a category, update the array in `ticket.validation.ts` and the `CATEGORY_LABELS` map in `tickets-list-page.tsx`.
 
 **Server rules** (`server/src/modules/tickets/ticket.controller.ts`):
 - `POST /api/tickets` — validates all fields, rejects invalid `assignedToId` (must reference a live, non-deleted user). `createdById` is always set from the session, never from the client body.
+- `PATCH /api/tickets/:id` — partial update of assignee and/or status. A non-null `assignedToId` is validated against the users table (live, non-deleted); `null` unassigns; omitted keys are left untouched. At least one field required. Returns the full ticket with relations resolved.
 - `GET /api/tickets` — server-driven pagination, sorting, and filtering. Returns `{ tickets, meta }` where `meta` is `{ page, limit, total, totalPages }`. Query params: `page`, `limit`, `sort`, `order`, `priority`, `category`, `assignee`, `search`. Validated by `validateTicketListQuery` in `ticket.validation.ts`.
 - `GET /api/tickets/:id` — returns a single ticket with user relations, or 404 if not found.
 
@@ -298,7 +302,11 @@ The ticket domain handles help-desk incidents. Each ticket has a subject, descri
 - The create form navigates back to `/tickets` on success or cancel.
 - Sorting defaults to newest-first (`log` column descending).
 
-**Ticket detail page** (`ticket-detail-page.tsx`): reads like an incident file pulled from a cabinet. The blotter prefix (`TKT-0001`) is the large monospace header — the call number for this case. The subject is the case title. The description lives in a white reading-area card. A compact metadata rail on the right shows status, priority, category, opened-by, assigned-to, and timestamps. A "Back to blotter" link returns to the list page.
+**Ticket detail page** (`ticket-detail-page.tsx`): reads like an incident file pulled from a cabinet. The blotter prefix (`TKT-0001`) is the large monospace header — the call number for this case. The subject is the case title. The description lives in a white reading-area card. A compact metadata rail on the right holds the filing details — and is now a dispatch surface, not a passive display:
+- **Status** is a segmented control (Open / In progress / Resolved / Closed). Clicking a segment fires `PATCH /api/tickets/:id` with the new status; the active segment is highlighted ink-blue.
+- **Assigned to** is a delegate card showing the current owner's monogram tile + name (or "Unassigned"), with an "Assign"/"Reassign" button. The button opens a crew slide-over (mirroring the roster edit panel) listing active crew as identity cards. The current assignee carries an "On this case" marker; an "Unassign" option sits at the top. Picking a crew member (or unassigning) fires `PATCH /api/tickets/:id` and closes the panel.
+- A mutation error surfaces as an inline banner in the rail, so the user can retry without dismissing a toast.
+- A "Back to blotter" link returns to the list page.
 
 ## Frontend Notes
 
@@ -324,7 +332,6 @@ To run manually: `npm run seed --workspace=server`.
 
 ## Known Gaps / TODOs
 
-- **No ticket status-update flow** — tickets can be viewed and created, but there is no UI/server flow to change status or reassign yet. `TicketStatus` is still a single `OPEN` enum value; expanding it requires a migration + status state machine + detail-page controls.
 - **No tests** — no test framework installed
 - **No README** — only this CLAUDE.md documents the project (a README would help onboard contributors)
 - **No public sign-up page** — an admin can create crew members via `/users/create`, but there's no self-service public sign-up flow yet
