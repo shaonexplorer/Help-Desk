@@ -14,6 +14,12 @@ export type TicketCategory =
 /** Ticket status. Currently only OPEN on creation. */
 export type TicketStatus = "OPEN";
 
+/** Sortable fields for the ticket list. Sent to the server as the `sort` param. */
+export type TicketSortField = "createdAt" | "subject" | "priority";
+
+/** Sort direction. */
+export type SortOrder = "asc" | "desc";
+
 /** Minimal user shape included in ticket list responses. */
 export interface TicketUser {
   id: string;
@@ -57,8 +63,30 @@ export interface Ticket {
   updatedAt: string;
 }
 
-export interface TicketsResponse {
+/** Pagination metadata returned by the ticket list endpoint. */
+export interface TicketsListMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+/** Query parameters for the server-driven ticket list endpoint. */
+export interface TicketListParams {
+  page?: number;
+  limit?: number;
+  sort?: TicketSortField;
+  order?: SortOrder;
+  priority?: string;     // comma-separated, e.g. "HIGH,URGENT"
+  category?: string;     // comma-separated, e.g. "BUG,SUPPORT"
+  assignee?: string;     // single id or "__unassigned__"
+  search?: string;
+}
+
+/** Response from the server-driven ticket list endpoint. */
+export interface TicketsListResponse {
   tickets: TicketWithUsers[];
+  meta: TicketsListMeta;
 }
 
 export interface TicketDetailResponse {
@@ -79,12 +107,17 @@ export interface CreateTicketInput {
 }
 
 /**
- * Fetch all tickets, newest first. Returns tickets with the creator and
- * assignee names resolved so the list page can display them without N+1
- * client lookups.
+ * Fetch a paginated, sorted, filtered page of tickets. All query parameters
+ * are optional — the server applies sensible defaults (page 1, limit 10,
+ * sort by createdAt desc). Returns tickets with creator and assignee names
+ * resolved plus pagination metadata.
  */
-export async function fetchTickets(): Promise<TicketsResponse> {
-  const { data } = await apiClient.get<TicketsResponse>("/api/tickets");
+export async function fetchTickets(
+  params?: TicketListParams,
+): Promise<TicketsListResponse> {
+  const { data } = await apiClient.get<TicketsListResponse>("/api/tickets", {
+    params,
+  });
   return data;
 }
 

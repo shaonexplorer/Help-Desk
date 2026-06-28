@@ -3,7 +3,7 @@ import { asyncHandler, HttpError } from '../../core';
 import { TicketModel } from './ticket.model';
 import { UserModel } from '../users/user.model';
 import { validateIdParam } from '../users/user.validation';
-import { validateCreateTicketBody } from './ticket.validation';
+import { validateCreateTicketBody, validateTicketListQuery } from './ticket.validation';
 
 /**
  * Ticket controller — owns the HTTP layer for ticket resources. It shapes the
@@ -12,9 +12,12 @@ import { validateCreateTicketBody } from './ticket.validation';
  * thrown as HttpError; asyncHandler forwards them to the error handler.
  */
 export const TicketController = {
-  list: asyncHandler(async (_req: Request, res: Response) => {
-    const tickets = await TicketModel.list();
-    res.json({ tickets });
+  list: asyncHandler(async (req: Request, res: Response) => {
+    const result = validateTicketListQuery(req.query as Record<string, unknown>);
+    if (!result.ok) throw new HttpError(400, result.errors.join(', '));
+
+    const { tickets, meta } = await TicketModel.paginatedList(result.value);
+    res.json({ tickets, meta });
   }),
 
   getById: asyncHandler(async (req: Request, res: Response) => {
