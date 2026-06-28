@@ -153,14 +153,17 @@ const columns = [
     cell: (info) => {
       const ticket = info.row.original;
       return (
-        <div className="min-w-0 max-w-xs">
-          <p className="truncate text-sm font-medium tracking-tight text-[#16150F]">
+        <Link
+          to={`/tickets/${ticket.id}`}
+          className="group block min-w-0 max-w-xs"
+        >
+          <p className="truncate text-sm font-medium tracking-tight text-[#16150F] underline-offset-2 group-hover:underline group-hover:text-[#1E3A5F] transition-colors">
             {info.getValue()}
           </p>
           <p className="truncate text-xs text-[#6B6860]">
             by {ticket.createdBy.name ?? ticket.createdBy.email}
           </p>
-        </div>
+        </Link>
       );
     },
   }),

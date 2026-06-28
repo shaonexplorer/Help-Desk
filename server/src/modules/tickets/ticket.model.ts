@@ -73,6 +73,21 @@ export const TicketModel = {
   },
 
   /**
+   * Find a single ticket by id, with creator and assignee names resolved.
+   * Returns null if the ticket doesn't exist.
+   */
+  async findById(id: string): Promise<TicketWithUsers | null> {
+    return prisma.ticket.findUnique({
+      where: { id },
+      select: {
+        ...TICKET_SELECT,
+        createdBy: { select: USER_MINI_SELECT },
+        assignedTo: { select: USER_MINI_SELECT },
+      },
+    });
+  },
+
+  /**
    * Create a new ticket. `createdById` is always set from the authenticated
    * session — the client never sends it.
    */
