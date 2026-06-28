@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorepo is set up and runs. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain exists (list + detail + create, admin/agent roles). The ticket domain exists (list + detail + create endpoints; blotter page with TanStack Table, incident file detail page, dispatch form creation page); ticket status-update and reassignment flow are not yet built.
+Help-Desk is a full-stack ticketing app in **active development**. The monorepo is set up and runs with a git repo initialized. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain is complete (list + detail + create + edit + soft-delete + reactivate, admin/agent roles with badges and presence). The ticket domain exists with read-and-create flow (server-paginated/sorted/filtered blotter via TanStack Table, incident file detail page, dispatch form creation page); **ticket status-update and reassignment flow are not yet built** — `TicketStatus` is still a single `OPEN` value, and the detail page is read-only.
 
 ## Common Development Commands
 
@@ -53,7 +53,8 @@ Help-Desk (root)
 │  │       ├─ login-page.tsx      ← Split-panel login layout
 │  │       ├─ login-form.tsx      ← Login form (react-hook-form + zod + authClient.signIn)
 │  │       ├─ dashboard.tsx       ← Authenticated home (health probe via useQuery)
-│  │       ├─ users-list-page.tsx ← Crew roster table (roles, presence, soft-delete + reactivate actions, useQuery)
+│  │       ├─ users-list-page.tsx ← Crew roster table (roles, presence, slide-over edit, soft-delete + reactivate actions, useQuery)
+│       ├─ edit-user-form.tsx  ← Slide-over edit form (name, email, role) launched from a roster row; react-hook-form + zod, only changed fields sent
 │  │       ├─ confirmation-dialog.tsx ← Reusable overlay dialog (destructive + confirm variants)
 │  │       ├─ create-user-page.tsx← Dispatch card for adding a new crew member
 │  │       ├─ create-user-form.tsx← react-hook-form + zod (name, email, password, role)
@@ -188,6 +189,7 @@ All `/api/*` routes except `/api/auth/*` are gated behind `requireAuth` (mounted
 | `GET /api/users` | users | Full crew roster, most-recent first. Returns `{ users: RosterUser[] }`. Soft-deleted users are included with `deletedAt` set so the client can render a "deactivated" badge. |
 | `GET /api/users/:id` | users | Single crew member. Returns `{ user }`, or 404 `{ error }` if not found. |
 | `POST /api/users` | users | Create a new crew member. Body: `name`, `email`, `password`, `role?` (defaults to AGENT). Routes through Better Auth sign-up. Returns 201 `{ user }`, 400 `{ error }` on validation failure, 409 `{ error }` if email already exists. |
+| `PUT /api/users/:id` | users | Update a crew member. Body: `name?`, `email?`, `role?`. Returns `{ user }`, 404 `{ error }` if not found. |
 | `DELETE /api/users/:id` | users | Soft-delete a crew member. Stamps `deletedAt` and **deletes the target's session rows** so their cookies stop working immediately. Returns 403 `{ error }` for admin targets, 404 `{ error }` if already deleted or missing. Returns `{ user }` with `deletedAt` set on success. |
 | `POST /api/users/:id/reactivate` | users | Reactivate a soft-deleted crew member. Clears `deletedAt`. Returns 400 `{ error }` if the user isn't currently deleted, 404 `{ error }` if not found. Returns `{ user }` with `deletedAt: null` on success. |
 | `GET /api/tickets` | tickets | Paginated, sorted, filtered ticket list. Query params: `page` (default 1), `limit` (10/20/50, default 10), `sort` (`createdAt`/`subject`/`priority`, default `createdAt`), `order` (`asc`/`desc`, default `desc`), `priority` (comma-separated, e.g. `HIGH,URGENT`), `category` (comma-separated, e.g. `BUG,SUPPORT`), `assignee` (single id or `__unassigned__`), `search` (text search across subject, creator/assignee name/email). Returns `{ tickets: TicketWithUsers[], meta: { page, limit, total, totalPages } }`. |
@@ -322,12 +324,11 @@ To run manually: `npm run seed --workspace=server`.
 
 ## Known Gaps / TODOs
 
-- **No ticket status-update flow** — tickets can be viewed and created, but there is no UI to change status (e.g. IN_PROGRESS, RESOLVED, CLOSED) or reassign yet
+- **No ticket status-update flow** — tickets can be viewed and created, but there is no UI/server flow to change status or reassign yet. `TicketStatus` is still a single `OPEN` enum value; expanding it requires a migration + status state machine + detail-page controls.
 - **No tests** — no test framework installed
-- **No git repo** — no `.git`, no commits, no `.gitignore`
-- **No README** — only this CLAUDE.md documents the project
-- **No role management UI** — users have an admin/agent role (DB + API + table badge), but there's no interface to change a role yet
+- **No README** — only this CLAUDE.md documents the project (a README would help onboard contributors)
 - **No public sign-up page** — an admin can create crew members via `/users/create`, but there's no self-service public sign-up flow yet
+- **Git repo is initialized** with `.gitignore` files at root and `client/` covering `node_modules`, `dist`, `.env*`, and editor files — coverage is adequate for local development
 
 ## Documentation Guidance
 
