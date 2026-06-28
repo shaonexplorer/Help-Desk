@@ -3,4 +3,19 @@ export type { RosterUser, Role, UsersResponse, UserResponse, CreateUserInput, Up
 export { fetchHello } from "./health";
 export type { HelloResponse } from "./health";
 export { createTicket, fetchTickets, fetchTicket } from "./tickets";
-export type { Ticket, TicketWithUsers, TicketUser, TicketPriority, TicketCategory, TicketStatus, TicketResponse, TicketDetailResponse, TicketsResponse, CreateTicketInput } from "./tickets";
+export type {
+  Ticket,
+  TicketWithUsers,
+  TicketUser,
+  TicketPriority,
+  TicketCategory,
+  TicketStatus,
+  TicketSortField,
+  SortOrder,
+  TicketListParams,
+  TicketsListMeta,
+  TicketsListResponse,
+  TicketResponse,
+  TicketDetailResponse,
+  CreateTicketInput,
+} from "./tickets";
