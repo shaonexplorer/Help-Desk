@@ -6,6 +6,8 @@ import { LoginPage } from '@/components/login-page';
 import { Dashboard } from '@/components/dashboard';
 import { UsersListPage } from '@/components/users-list-page';
 import { CreateUserPage } from '@/components/create-user-page';
+import { CreateTicketPage } from '@/components/create-ticket-page';
+import { TicketsListPage } from '@/components/tickets-list-page';
 import { AppShell } from '@/components/app-shell';
 
 export function App() {
@@ -29,6 +31,26 @@ export function App() {
               <ProtectedRoute>
                 <AppShell>
                   <UsersListPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tickets"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <TicketsListPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tickets/create"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <CreateTicketPage />
                 </AppShell>
               </ProtectedRoute>
             }
