@@ -11,8 +11,12 @@ export type TicketCategory =
   | "BILLING"
   | "OTHER";
 
-/** Ticket status. Currently only OPEN on creation. */
-export type TicketStatus = "OPEN";
+/**
+ * Ticket lifecycle states. Kept in sync with the Prisma TicketStatus enum and
+ * the server-side TICKET_STATUSES allowlist. A ticket opens OPEN, moves to
+ * IN_PROGRESS when picked up, RESOLVED when the fix is in, CLOSED when archived.
+ */
+export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 
 /** Sortable fields for the ticket list. Sent to the server as the `sort` param. */
 export type TicketSortField = "createdAt" | "subject" | "priority";
@@ -107,6 +111,16 @@ export interface CreateTicketInput {
 }
 
 /**
+ * Payload for updating an existing ticket. Both fields are optional — only the
+ * provided ones are sent. `assignedToId: null` unassigns the ticket; omit the
+ * key to leave the assignee untouched.
+ */
+export interface UpdateTicketInput {
+  assignedToId?: string | null;
+  status?: TicketStatus;
+}
+
+/**
  * Fetch a paginated, sorted, filtered page of tickets. All query parameters
  * are optional — the server applies sensible defaults (page 1, limit 10,
  * sort by createdAt desc). Returns tickets with creator and assignee names
@@ -138,5 +152,22 @@ export async function createTicket(
   input: CreateTicketInput,
 ): Promise<TicketResponse> {
   const { data } = await apiClient.post<TicketResponse>("/api/tickets", input);
+  return data;
+}
+
+/**
+ * Update a ticket's assignee and/or status. Only the provided fields are sent;
+ * the server leaves omitted fields untouched. On success the server returns the
+ * full ticket with creator/assignee names resolved, so the caller can replace
+ * the cached row directly instead of triggering a refetch.
+ */
+export async function updateTicket(
+  id: string,
+  input: UpdateTicketInput,
+): Promise<TicketDetailResponse> {
+  const { data } = await apiClient.patch<TicketDetailResponse>(
+    `/api/tickets/${id}`,
+    input,
+  );
   return data;
 }

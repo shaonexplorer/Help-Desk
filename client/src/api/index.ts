@@ -2,7 +2,7 @@ export { fetchUsers, fetchUser, createUser, updateUser, deleteUser, reactivateUs
 export type { RosterUser, Role, UsersResponse, UserResponse, CreateUserInput, UpdateUserInput } from "./users";
 export { fetchHello } from "./health";
 export type { HelloResponse } from "./health";
-export { createTicket, fetchTickets, fetchTicket } from "./tickets";
+export { createTicket, updateTicket, fetchTickets, fetchTicket } from "./tickets";
 export type {
   Ticket,
   TicketWithUsers,
@@ -18,4 +18,5 @@ export type {
   TicketResponse,
   TicketDetailResponse,
   CreateTicketInput,
+  UpdateTicketInput,
 } from "./tickets";

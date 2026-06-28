@@ -6,4 +6,5 @@ export function mountTickets(router: Router): void {
   router.get('/tickets', TicketController.list);
   router.get('/tickets/:id', TicketController.getById);
   router.post('/tickets', TicketController.create);
+  router.patch('/tickets/:id', TicketController.update);
 }

@@ -21,6 +21,20 @@ export const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
 /**
+ * The ticket lifecycle. Kept in sync with the Prisma TicketStatus enum. A ticket
+ * opens OPEN, moves to IN_PROGRESS when someone picks it up, RESOLVED when the
+ * fix is in, and CLOSED when the file is archived. Add a new state here and in
+ * the Prisma enum together — never one without the other.
+ */
+export const TICKET_STATUSES = [
+  'OPEN',
+  'IN_PROGRESS',
+  'RESOLVED',
+  'CLOSED',
+] as const;
+export type TicketStatus = (typeof TICKET_STATUSES)[number];
+
+/**
  * Validate the body of a create-ticket request. Subject and description are
  * required; priority defaults to MEDIUM; category must be in the allowlist;
  * assignedToId is optional (controller does the DB lookup).
@@ -232,5 +246,71 @@ export function validateTicketListQuery(
     ...(category ? { category } : {}),
     ...(assignee ? { assignee } : {}),
     ...(search ? { search } : {}),
+  });
+}
+
+// ─── Update body validation ────────────────────────────────────────────────
+
+/**
+ * Validate the body of an update-ticket request. Both fields are optional, but
+ * at least one must be provided. `assignedToId` may be a non-empty string (a
+ * user id), or explicitly `null` to pull the ticket back to the bench. When a
+ * string is provided, the controller does the DB lookup to confirm the user is
+ * live and active. `status` must be one of the allowed ticket states.
+ */
+export function validateUpdateTicketBody(body: unknown): ValidationResult<{
+  assignedToId?: string | null;
+  status?: TicketStatus;
+}> {
+  if (typeof body !== 'object' || body === null) {
+    return fail(['Request body must be an object']);
+  }
+
+  const record = body as Record<string, unknown>;
+  const errors: string[] = [];
+  let hasField = false;
+
+  // AssignedToId — optional. A non-empty string assigns; null unassigns.
+  // Anything else (empty string, number, object) is a client error.
+  let assignedToId: string | null | undefined;
+  if (record.assignedToId !== undefined) {
+    if (record.assignedToId === null) {
+      assignedToId = null;
+      hasField = true;
+    } else if (isNonEmptyString(record.assignedToId)) {
+      assignedToId = record.assignedToId;
+      hasField = true;
+    } else {
+      errors.push('"assignedToId" must be a non-empty string or null');
+    }
+  }
+
+  // Status — optional, must be one of the allowlisted states.
+  let status: TicketStatus | undefined;
+  if (record.status !== undefined) {
+    if (
+      typeof record.status !== 'string' ||
+      !TICKET_STATUSES.includes(record.status as TicketStatus)
+    ) {
+      errors.push(
+        `"status" must be one of ${TICKET_STATUSES.join(', ')}`,
+      );
+    } else {
+      status = record.status as TicketStatus;
+      hasField = true;
+    }
+  }
+
+  if (!hasField) {
+    errors.push('At least one of assignedToId or status must be provided');
+  }
+
+  if (errors.length > 0) {
+    return fail(errors);
+  }
+
+  return ok({
+    ...(assignedToId !== undefined ? { assignedToId } : {}),
+    ...(status !== undefined ? { status } : {}),
   });
 }

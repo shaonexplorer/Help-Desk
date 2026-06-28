@@ -1,5 +1,5 @@
 import prisma from '../../prisma';
-import type { TicketListQuery } from './ticket.validation';
+import type { TicketListQuery, TicketStatus } from './ticket.validation';
 import { Prisma } from '@prisma/client';
 
 /**
@@ -25,7 +25,7 @@ export type TicketRow = {
   description: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   category: string;
-  status: 'OPEN';
+  status: TicketStatus;
   createdById: string;
   assignedToId: string | null;
   createdAt: Date;
@@ -49,6 +49,12 @@ export type CreateTicketInput = {
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   category: string;
   assignedToId?: string | null;
+};
+
+/** Partial update payload — every field is optional. */
+export type UpdateTicketInput = {
+  assignedToId?: string | null;
+  status?: TicketStatus;
 };
 
 export type TicketsListMeta = {
@@ -167,6 +173,38 @@ export const TicketModel = {
         createdById,
       },
       select: TICKET_SELECT,
+    });
+  },
+
+  /**
+   * Update an existing ticket's assignee and/or status. Only the provided
+   * fields are applied — an omitted field is left untouched. Returns the
+   * updated ticket with creator and assignee names resolved, or null if the
+   * ticket doesn't exist. The controller is responsible for validating the
+   * assignee before calling this.
+   */
+  async updateTicket(
+    id: string,
+    input: UpdateTicketInput,
+  ): Promise<TicketWithUsers | null> {
+    const existing = await prisma.ticket.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!existing) return null;
+
+    const data: Record<string, unknown> = {};
+    if (input.assignedToId !== undefined) data.assignedToId = input.assignedToId;
+    if (input.status !== undefined) data.status = input.status;
+
+    return prisma.ticket.update({
+      where: { id },
+      data,
+      select: {
+        ...TICKET_SELECT,
+        createdBy: { select: USER_MINI_SELECT },
+        assignedTo: { select: USER_MINI_SELECT },
+      },
     });
   },
 };

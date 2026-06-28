@@ -7,6 +7,7 @@ import { auth } from './auth';
 import { compose } from './core/router';
 import { healthModule } from './modules/health';
 import { usersModule } from './modules/users';
+import { ticketsModule } from './modules/tickets';
 import path from 'path';
 import { toNodeHandler } from 'better-auth/node';
 import { seedAdmin } from './scripts/seed-admin';
@@ -34,7 +35,7 @@ app.use(express.static(path.join(process.cwd(), '..', '..', 'client', 'dist')));
 // API routes — every feature module composes here, then the whole tree is gated
 // behind Better Auth. /api/auth/* above stays public so sign-in/sign-up/sign-out
 // work. Adding a future module (tickets, ...) is one import + one line here.
-app.use('/api', requireAuth, compose([healthModule, usersModule]));
+app.use('/api', requireAuth, compose([healthModule, usersModule, ticketsModule]));
 app.use(errorHandler);
 // Fallback for client‑side routing (serve index.html)
 app.get('*', (_req, res) => {
