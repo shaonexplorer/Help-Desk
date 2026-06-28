@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorepo is set up and runs. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain exists (list + detail + create, admin/agent roles). The ticket submission domain exists (create endpoint + form page); ticket list/detail/views are not yet built.
+Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorepo is set up and runs. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain exists (list + detail + create, admin/agent roles). The ticket domain exists (list endpoint with TanStack Table blotter page + create endpoint with dispatch form page); ticket detail view and status-update flow are not yet built.
 
 ## Common Development Commands
 
@@ -38,7 +38,7 @@ Help-Desk (root)
 │  │  ├─ api/               ← Per-domain API modules (mirrors server modules)
 │  │  │  ├─ index.ts        ← Barrel re-export of all API functions/types
 │  │  │  ├─ users.ts        ← fetchUsers, fetchUser, createUser, updateUser, deleteUser, reactivateUser, RosterUser, Role, CreateUserInput
-│  │  │  ├─ tickets.ts      ← createTicket, Ticket, TicketPriority, TicketCategory, TicketStatus, CreateTicketInput
+│  │  │  ├─ tickets.ts      ← fetchTickets, createTicket, Ticket, TicketWithUsers, TicketUser, TicketPriority, TicketCategory, TicketStatus, CreateTicketInput
 │  │  │  └─ health.ts       ← fetchHello, HelloResponse
 │  │  ├─ style.css          ← Tailwind v4 import + @theme tokens + base layer
 │  │  ├─ lib/
@@ -49,7 +49,7 @@ Help-Desk (root)
 │  │  │  ├─ auth-client.ts  ← Better Auth client singleton (createAuthClient)
 │  │  │  └─ auth-errors.ts  ← Error code → user-facing message map
 │  │  └─ components/
-│  │       ├─ app-shell.tsx       ← Shared navbar (brand + Dashboard/New Ticket/Crew nav + sign out)
+│  │       ├─ app-shell.tsx       ← Shared navbar (brand + Dashboard/Tickets/Crew nav + sign out)
 │  │       ├─ login-page.tsx      ← Split-panel login layout
 │  │       ├─ login-form.tsx      ← Login form (react-hook-form + zod + authClient.signIn)
 │  │       ├─ dashboard.tsx       ← Authenticated home (health probe via useQuery)
@@ -66,7 +66,7 @@ Help-Desk (root)
 │  ├─ index.html             ← Vite entry, mounts #app
 │  ├─ vite.config.ts         ← React plugin, Tailwind, @ alias, /api proxy
 │  ├─ tsconfig.json          ← extends base, bundler moduleResolution, path alias
-│  └─ package.json           ← React 19, Vite 8, Tailwind v4, shadcn, axios, @tanstack/react-query
+│  └─ package.json           ← React 19, Vite 8, Tailwind v4, shadcn, axios, @tanstack/react-query, @tanstack/react-table
 │
 └─ server/                  ← Express API (TypeScript) — modular MVC
    ├─ src/
@@ -93,9 +93,9 @@ Help-Desk (root)
    │  │     ├─ user.route.ts      ← mountUsers(router)
    │  │     └─ index.ts           ← exports usersModule: Mountable
    │  ├─ modules/tickets/
-   │  │  ├─ ticket.model.ts      ← Prisma access + TICKET_SELECT allow-list + createTicket
+   │  │  ├─ ticket.model.ts      ← Prisma access + TICKET_SELECT + USER_MINI_SELECT + TicketModel.list / createTicket
    │  │  ├─ ticket.validation.ts ← TICKET_CATEGORIES allowlist + validateCreateTicketBody + ValidationResult
-   │  │  ├─ ticket.controller.ts ← TicketController.create (asyncHandler + HttpError)
+   │  │  ├─ ticket.controller.ts ← TicketController.list / create (asyncHandler + HttpError)
    │  │  ├─ ticket.route.ts      ← mountTickets(router)
    │  │  └─ index.ts             ← exports ticketsModule: Mountable
    │  ├─ routes/
@@ -189,8 +189,8 @@ All `/api/*` routes except `/api/auth/*` are gated behind `requireAuth` (mounted
 | `POST /api/users` | users | Create a new crew member. Body: `name`, `email`, `password`, `role?` (defaults to AGENT). Routes through Better Auth sign-up. Returns 201 `{ user }`, 400 `{ error }` on validation failure, 409 `{ error }` if email already exists. |
 | `DELETE /api/users/:id` | users | Soft-delete a crew member. Stamps `deletedAt` and **deletes the target's session rows** so their cookies stop working immediately. Returns 403 `{ error }` for admin targets, 404 `{ error }` if already deleted or missing. Returns `{ user }` with `deletedAt` set on success. |
 | `POST /api/users/:id/reactivate` | users | Reactivate a soft-deleted crew member. Clears `deletedAt`. Returns 400 `{ error }` if the user isn't currently deleted, 404 `{ error }` if not found. Returns `{ user }` with `deletedAt: null` on success. |
-| `POST /api/tickets` | tickets | Create a new ticket. Body: `subject`, `description`, `priority?` (defaults to MEDIUM), `category`, `assignedToId?`. `createdById` is set from the session. Returns 201 `{ ticket }`, 400 `{ error }` on validation failure or invalid `assignedToId`. |
 | `GET /api/tickets` | tickets | List all tickets, newest first, with `createdBy` and `assignedTo` user names resolved. Returns `{ tickets: TicketWithUsers[] }`. |
+| `POST /api/tickets` | tickets | Create a new ticket. Body: `subject`, `description`, `priority?` (defaults to MEDIUM), `category`, `assignedToId?`. `createdById` is set from the session. Returns 201 `{ ticket }`, 400 `{ error }` on validation failure or invalid `assignedToId`. |
 
 Sessions are stored in the DB (`storeSessionInDatabase: true`, 7-day expiry). `User.id` is a `cuid` string, not an autoincrement int.
 
@@ -240,7 +240,7 @@ export const authClient = createAuthClient({
 Data fetching uses **axios** (`lib/api-client.ts`) plus **TanStack Query** (`lib/query-client.tsx`). The `api/` folder is split per domain to mirror the server's `modules/`:
 
 - `api/users.ts` — `fetchUsers()`, `fetchUser(id)`, `createUser(input)`, `updateUser(id, input)`, `deleteUser(id)`, `reactivateUser(id)`, and the `RosterUser` / `Role` / `CreateUserInput` / response types.
-- `api/tickets.ts` — `createTicket(input)`, and the `Ticket` / `TicketPriority` / `TicketCategory` / `TicketStatus` / `CreateTicketInput` / response types.
+- `api/tickets.ts` — `fetchTickets()`, `createTicket(input)`, and the `Ticket` / `TicketWithUsers` / `TicketUser` / `TicketPriority` / `TicketCategory` / `TicketStatus` / `CreateTicketInput` / response types.
 - `api/health.ts` — `fetchHello()`.
 - `api/index.ts` — barrel re-export, so components import from `@/api`.
 
@@ -255,9 +255,13 @@ The shared axios instance uses an empty `baseURL` (relative requests — Vite pr
 
 These conventions are the standard pattern for all new features — follow them when adding new API endpoints or pages.
 
-Pages call the API through `useQuery` (e.g. `users-list-page.tsx` uses queryKey `["users"]`; `dashboard.tsx` uses `["health"]`). To invalidate after a mutation, call `queryClient.invalidateQueries({ queryKey: [...] })`.
+Pages call the API through `useQuery` (e.g. `users-list-page.tsx` uses queryKey `["users"]`; `tickets-list-page.tsx` uses `["tickets"]`; `dashboard.tsx` uses `["health"]`). To invalidate after a mutation, call `queryClient.invalidateQueries({ queryKey: [...] })`.
 
 **Users list page** (`users-list-page.tsx`): warm-paper surface (`#F7F6F1`) with ink-blue accents (`#1E3A5F`). The "Add member" link sits in a flex row alongside the search bar — search on the left, add member on the right — so the primary action stays visible without scrolling. The create-user page (`create-user-page.tsx`) uses the same visual identity: a dispatch-board card with monospace eyebrow and a `UserPlus` icon header.
+
+**Tickets list page** (`tickets-list-page.tsx`): built on **TanStack Table v8** (`useReactTable` + `getCoreRowModel` / `getSortedRowModel` / `getFilteredRowModel` / `getPaginationRowModel`). Reads like a **blotter** — a dispatcher's incident log — not a generic data table. The signature typographic move is the monosequence prefix on each row (`TKT-0001` in monospace ink-blue), making every ticket feel like a logbook entry. Columns: Blotter (monospace prefix), Subject (with creator name), Priority (color badge — gray Low/Med, amber High, red-wash Urgent/Crit), Category (chip), Status (green dot + label), Assigned to (name or "Unassigned"), Log (monospace timestamp + relative time). Sorting is available on Subject, Priority, and Log columns (sorted newest-first by default). Global filtering searches across subject, category, creator, and assignee names/emails. Pagination is configurable (10/20/50 per page) with first/prev/next/last controls. The page uses the same warm-paper surface, ink-blue eyebrow, and dispatch-board vocabulary as the crew roster. The "Open ticket" link in the flex row navigates to `/tickets/create`.
+
+**TanStack Table convention** (`tickets-list-page.tsx`): The table is fully headless — TanStack Table provides the data model and sorting/filtering/pagination logic, while the JSX renders a custom flex-row layout (not the shadcn `Table` component). Column definitions use `createColumnHelper<TicketWithUsers>()` with a `SortableHeader` wrapper for clickable sort headers. The `globalFilterFn` is a custom function that searches across multiple fields. This headless + custom-render pattern is the standard for any future table pages — the shadcn `Table` component is used for simple static tables (crew roster), TanStack Table for interactive data views.
 
 ### Soft Delete & Reactivate
 
@@ -273,6 +277,21 @@ The crew roster supports soft-delete and reactivation. The `User` Prisma model h
 - Both actions go through `ConfirmationDialog` before firing, then invalidate `["users"]`.
 - Inline error banners surface the server's message if either mutation fails.
 
+### Ticket Domain
+
+The ticket domain handles help-desk incidents. Each ticket has a subject, description, priority, category, status, creator, and optional assignee. The Prisma model uses two enums (`TicketPriority`: LOW/MEDIUM/HIGH/URGENT, `TicketStatus`: OPEN) and a plain `String` column for category validated against a code-level allowlist (`TICKET_CATEGORIES` in `ticket.validation.ts`). This avoids a migration every time a category is added; the allowlist can be moved to a DB table later.
+
+**Category allowlist** (`server/src/modules/tickets/ticket.validation.ts`): `BUG`, `FEATURE_REQUEST`, `SUPPORT`, `BILLING`, `OTHER`. A typed union `TicketCategory` is derived from the array and shared with the client. To add a category, update the array in `ticket.validation.ts` and the `CATEGORY_LABELS` map in `tickets-list-page.tsx`.
+
+**Server rules** (`server/src/modules/tickets/ticket.controller.ts`):
+- `POST /api/tickets` — validates all fields, rejects invalid `assignedToId` (must reference a live, non-deleted user). `createdById` is always set from the session, never from the client body.
+- `GET /api/tickets` — returns all tickets newest-first with `createdBy` and `assignedTo` user names resolved via `USER_MINI_SELECT` (id, name, email). No pagination yet.
+
+**Client rules** (`client/src/components/tickets-list-page.tsx`):
+- The "Open ticket" link navigates to `/tickets/create`.
+- The create form navigates back to `/tickets` on success or cancel.
+- Sorting defaults to newest-first (`log` column descending).
+
 ## Frontend Notes
 
 - **React 19** with `createRoot` in StrictMode, mounted on `#app`
@@ -282,6 +301,7 @@ The crew roster supports soft-delete and reactivation. The `User` Prisma model h
 - **Path alias**: `@/` maps to `client/src/` (configured in both `tsconfig.json` and `vite.config.ts`)
 - **UI components**: `Button`, `Input`, `Label`, `Table` (all shadcn-style; `Table` wraps native table elements)
 - **Form patterns**: All forms use `react-hook-form` + `zod` with `@hookform/resolvers`. The login form (email + password) and the create-user form (name, email, password, role) both follow the same field markup pattern: `<Label>` + `<Input>` + error `<p>`. On mutation success, invalidate the relevant query and navigate. Pin `zod` to v3 and `@hookform/resolvers` to v4 — the resolver v5 requires zod v4's standard-schema shape and will fail to type-check against v3 schemas.
+- **Table patterns**: Simple static tables use the shadcn `Table` component (see `users-list-page.tsx`). Interactive data views with sorting, filtering, or pagination use **TanStack Table v8** headless (`useReactTable` + `getCoreRowModel` / `getSortedRowModel` / `getFilteredRowModel` / `getPaginationRowModel`) with custom JSX rendering (see `tickets-list-page.tsx`). TanStack Table v8 stable uses `useReactTable` with `get*RowModel()` functions — not the v9 beta `useTable` + `tableFeatures` API.
 
 ## Admin Seed
 
