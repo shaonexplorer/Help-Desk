@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { asyncHandler, HttpError } from '../../core';
 import { TicketModel } from './ticket.model';
 import { UserModel } from '../users/user.model';
+import { validateIdParam } from '../users/user.validation';
 import { validateCreateTicketBody } from './ticket.validation';
 
 /**
@@ -14,6 +15,16 @@ export const TicketController = {
   list: asyncHandler(async (_req: Request, res: Response) => {
     const tickets = await TicketModel.list();
     res.json({ tickets });
+  }),
+
+  getById: asyncHandler(async (req: Request, res: Response) => {
+    const result = validateIdParam({ id: req.params.id });
+    if (!result.ok) throw new HttpError(400, result.errors.join(', '));
+
+    const ticket = await TicketModel.findById(result.value);
+    if (!ticket) throw new HttpError(404, 'Ticket not found');
+
+    res.json({ ticket });
   }),
 
   create: asyncHandler(async (req: Request, res: Response) => {

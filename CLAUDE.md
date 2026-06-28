@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorepo is set up and runs. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain exists (list + detail + create, admin/agent roles). The ticket domain exists (list endpoint with TanStack Table blotter page + create endpoint with dispatch form page); ticket detail view and status-update flow are not yet built.
+Help-Desk is a full-stack ticketing app in **early scaffold stage**. The monorepo is set up and runs. Auth is fully wired end-to-end (Better Auth server + client SDK, login page, route protection, reactive sessions). The server is organized as a **modular MVC** (a shared `core/` kernel plus self-contained feature `modules/` composed in `index.ts`). The crew users domain exists (list + detail + create, admin/agent roles). The ticket domain exists (list + detail + create endpoints; blotter page with TanStack Table, incident file detail page, dispatch form creation page); ticket status-update and reassignment flow are not yet built.
 
 ## Common Development Commands
 
@@ -60,6 +60,7 @@ Help-Desk (root)
 │  │       ├─ create-ticket-page.tsx← Dispatch card for opening a new ticket
 │  │       ├─ create-ticket-form.tsx← react-hook-form + zod (subject, description, priority, category, assignedToId)
 │  │       ├─ tickets-list-page.tsx ← Ticket blotter with TanStack Table (sorting, filtering, pagination)
+│  │       ├─ ticket-detail-page.tsx ← Incident file view (blotter header, description reader, metadata rail)
 │  │       ├─ protected-route.tsx ← Redirects to /login if no session
 │  │       ├─ public-route.tsx    ← Redirects to / if already logged in
 │  │       └─ ui/                 ← shadcn-style components (Button, Input, Label, Table)
@@ -190,6 +191,7 @@ All `/api/*` routes except `/api/auth/*` are gated behind `requireAuth` (mounted
 | `DELETE /api/users/:id` | users | Soft-delete a crew member. Stamps `deletedAt` and **deletes the target's session rows** so their cookies stop working immediately. Returns 403 `{ error }` for admin targets, 404 `{ error }` if already deleted or missing. Returns `{ user }` with `deletedAt` set on success. |
 | `POST /api/users/:id/reactivate` | users | Reactivate a soft-deleted crew member. Clears `deletedAt`. Returns 400 `{ error }` if the user isn't currently deleted, 404 `{ error }` if not found. Returns `{ user }` with `deletedAt: null` on success. |
 | `GET /api/tickets` | tickets | List all tickets, newest first, with `createdBy` and `assignedTo` user names resolved. Returns `{ tickets: TicketWithUsers[] }`. |
+| `GET /api/tickets/:id` | tickets | Single ticket with `createdBy` and `assignedTo` user names resolved. Returns `{ ticket: TicketWithUsers }`, or 404 `{ error }` if not found. |
 | `POST /api/tickets` | tickets | Create a new ticket. Body: `subject`, `description`, `priority?` (defaults to MEDIUM), `category`, `assignedToId?`. `createdById` is set from the session. Returns 201 `{ ticket }`, 400 `{ error }` on validation failure or invalid `assignedToId`. |
 
 Sessions are stored in the DB (`storeSessionInDatabase: true`, 7-day expiry). `User.id` is a `cuid` string, not an autoincrement int.
@@ -286,11 +288,15 @@ The ticket domain handles help-desk incidents. Each ticket has a subject, descri
 **Server rules** (`server/src/modules/tickets/ticket.controller.ts`):
 - `POST /api/tickets` — validates all fields, rejects invalid `assignedToId` (must reference a live, non-deleted user). `createdById` is always set from the session, never from the client body.
 - `GET /api/tickets` — returns all tickets newest-first with `createdBy` and `assignedTo` user names resolved via `USER_MINI_SELECT` (id, name, email). No pagination yet.
+- `GET /api/tickets/:id` — returns a single ticket with user relations, or 404 if not found.
 
 **Client rules** (`client/src/components/tickets-list-page.tsx`):
+- Clicking a ticket's subject navigates to `/tickets/:id` (the incident file detail page).
 - The "Open ticket" link navigates to `/tickets/create`.
 - The create form navigates back to `/tickets` on success or cancel.
 - Sorting defaults to newest-first (`log` column descending).
+
+**Ticket detail page** (`ticket-detail-page.tsx`): reads like an incident file pulled from a cabinet. The blotter prefix (`TKT-0001`) is the large monospace header — the call number for this case. The subject is the case title. The description lives in a white reading-area card. A compact metadata rail on the right shows status, priority, category, opened-by, assigned-to, and timestamps. A "Back to blotter" link returns to the list page.
 
 ## Frontend Notes
 
@@ -316,7 +322,7 @@ To run manually: `npm run seed --workspace=server`.
 
 ## Known Gaps / TODOs
 
-- **No ticket detail view** — tickets can be listed and created, but there is no detail view or status-update flow yet
+- **No ticket status-update flow** — tickets can be viewed and created, but there is no UI to change status (e.g. IN_PROGRESS, RESOLVED, CLOSED) or reassign yet
 - **No tests** — no test framework installed
 - **No git repo** — no `.git`, no commits, no `.gitignore`
 - **No README** — only this CLAUDE.md documents the project

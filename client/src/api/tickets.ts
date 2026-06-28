@@ -61,6 +61,10 @@ export interface TicketsResponse {
   tickets: TicketWithUsers[];
 }
 
+export interface TicketDetailResponse {
+  ticket: TicketWithUsers;
+}
+
 export interface TicketResponse {
   ticket: Ticket;
 }
@@ -81,6 +85,15 @@ export interface CreateTicketInput {
  */
 export async function fetchTickets(): Promise<TicketsResponse> {
   const { data } = await apiClient.get<TicketsResponse>("/api/tickets");
+  return data;
+}
+
+/**
+ * Fetch a single ticket by id, with the creator and assignee names resolved.
+ * Returns 404 if the ticket doesn't exist.
+ */
+export async function fetchTicket(id: string): Promise<TicketDetailResponse> {
+  const { data } = await apiClient.get<TicketDetailResponse>(`/api/tickets/${id}`);
   return data;
 }
 
