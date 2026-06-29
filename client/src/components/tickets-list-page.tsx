@@ -20,6 +20,14 @@ import {
 } from '@/api';
 import { Input } from '@/components/ui/input';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Search,
   TicketPlus,
   ArrowUpDown,
@@ -235,10 +243,7 @@ const columns = [
     cell: (info) => {
       const ticket = info.row.original;
       return (
-        <Link
-          to={`/tickets/${ticket.id}`}
-          className="group block min-w-0 max-w-xs"
-        >
+        <Link to={`/tickets/${ticket.id}`} className="group block min-w-0 max-w-xs">
           <p className="truncate text-sm font-medium tracking-tight text-[#16150F] underline-offset-2 group-hover:underline group-hover:text-[#1E3A5F] transition-colors">
             {info.getValue()}
           </p>
@@ -271,11 +276,7 @@ const columns = [
       if (!assignee) {
         return <span className="text-xs text-[#C7C4BB]">Unassigned</span>;
       }
-      return (
-        <span className="text-sm text-[#16150F]">
-          {assignee.name ?? assignee.email}
-        </span>
-      );
+      return <span className="text-sm text-[#16150F]">{assignee.name ?? assignee.email}</span>;
     },
     enableSorting: false,
   }),
@@ -302,9 +303,7 @@ export function TicketsListPage() {
   // ── Server-driven query state ──────────────────────────────────────────────
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: 'log', desc: true },
-  ]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'log', desc: true }]);
   const [priorityFilter, setPriorityFilter] = useState<TicketPriority[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<TicketCategory[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState('');
@@ -325,12 +324,8 @@ export function TicketsListPage() {
   }, [searchInput]);
 
   // Derive sort params from TanStack Table sorting state.
-  const sortField: TicketSortField = sorting[0]
-    ? toServerSort(sorting[0].id)
-    : 'createdAt';
-  const sortOrder: SortOrder = sorting[0]
-    ? sorting[0].desc ? 'desc' : 'asc'
-    : 'desc';
+  const sortField: TicketSortField = sorting[0] ? toServerSort(sorting[0].id) : 'createdAt';
+  const sortOrder: SortOrder = sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : 'desc';
 
   // ── Build query params ─────────────────────────────────────────────────────
   const queryParams = {
@@ -369,7 +364,11 @@ export function TicketsListPage() {
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   })();
 
-  const hasActiveFilters = priorityFilter.length > 0 || categoryFilter.length > 0 || assigneeFilter !== '' || searchQuery !== '';
+  const hasActiveFilters =
+    priorityFilter.length > 0 ||
+    categoryFilter.length > 0 ||
+    assigneeFilter !== '' ||
+    searchQuery !== '';
 
   // ── TanStack Table (manual mode — server does the work) ────────────────────
   const table = useReactTable({
@@ -395,16 +394,12 @@ export function TicketsListPage() {
 
   // ── Filter callbacks ───────────────────────────────────────────────────────
   const togglePriority = useCallback((p: TicketPriority) => {
-    setPriorityFilter((prev) =>
-      prev.includes(p) ? prev.filter((v) => v !== p) : [...prev, p],
-    );
+    setPriorityFilter((prev) => (prev.includes(p) ? prev.filter((v) => v !== p) : [...prev, p]));
     setPage(1);
   }, []);
 
   const toggleCategory = useCallback((c: TicketCategory) => {
-    setCategoryFilter((prev) =>
-      prev.includes(c) ? prev.filter((v) => v !== c) : [...prev, c],
-    );
+    setCategoryFilter((prev) => (prev.includes(c) ? prev.filter((v) => v !== c) : [...prev, c]));
     setPage(1);
   }, []);
 
@@ -439,8 +434,8 @@ export function TicketsListPage() {
         </div>
 
         <p className="mb-6 max-w-xl text-2xl font-light leading-snug tracking-tight text-[#16150F]">
-          The incoming feed. Scan by priority, claim by name — every ticket is one
-          action away from resolution.
+          The incoming feed. Scan by priority, claim by name — every ticket is one action away from
+          resolution.
         </p>
 
         {/* Search + primary action */}
@@ -537,7 +532,10 @@ export function TicketsListPage() {
               </div>
             </div>
             {Array.from({ length: Math.min(limit, 8) }).map((_, i) => (
-              <div key={i} className="flex items-center gap-6 border-b border-[#E4E1D7]/60 px-5 py-4 last:border-0">
+              <div
+                key={i}
+                className="flex items-center gap-6 border-b border-[#E4E1D7]/60 px-5 py-4 last:border-0"
+              >
                 <span className="h-3 w-16 animate-pulse rounded bg-[#E4E1D7] font-mono" />
                 <span className="h-3 w-40 animate-pulse rounded bg-[#E4E1D7]" />
                 <span className="h-5 w-12 animate-pulse rounded-md bg-[#E4E1D7]" />
@@ -586,65 +584,79 @@ export function TicketsListPage() {
         {/* Table */}
         {!isLoading && !isError && tickets.length > 0 && (
           <>
-            <div className="overflow-hidden rounded-xl border border-[#E4E1D7] bg-white">
-              {/* Header */}
-              <div className="border-b border-[#E4E1D7] bg-[#F7F6F1]/50">
+            <Table className="rounded-xl border border-[#E4E1D7] bg-white">
+              <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
-                  <div
+                  <TableRow
                     key={headerGroup.id}
-                    className="flex items-center gap-6 px-5 py-3"
+                    className="border-[#E4E1D7] bg-[#F7F6F1]/50 hover:bg-[#F7F6F1]/50"
                   >
                     {headerGroup.headers.map((header) => (
-                      <div
+                      <TableHead
                         key={header.id}
-                        className="whitespace-nowrap text-xs font-medium uppercase tracking-[0.08em] text-[#6B6860]"
+                        className={`whitespace-nowrap text-xs font-medium uppercase tracking-[0.08em] text-[#6B6860] ${
+                          header.id === 'blotter' ? 'pl-5' : header.id === 'log' ? 'pr-5' : ''
+                        }`}
                         style={{
-                          width: header.id === 'blotter' ? '80px' :
-                                 header.id === 'priority' ? '72px' :
-                                 header.id === 'category' ? '80px' :
-                                 header.id === 'status' ? '72px' :
-                                 header.id === 'assignee' ? '120px' :
-                                 header.id === 'log' ? '90px' :
-                                 undefined,
-                          ...(header.id === 'log' ? { marginLeft: 'auto' } : {}),
-                          ...(header.id === 'subject' ? { flex: 1 } : {}),
+                          width:
+                            header.id === 'blotter'
+                              ? '80px'
+                              : header.id === 'priority'
+                                ? '72px'
+                                : header.id === 'category'
+                                  ? '80px'
+                                  : header.id === 'status'
+                                    ? '72px'
+                                    : header.id === 'assignee'
+                                      ? '120px'
+                                      : header.id === 'log'
+                                        ? '90px'
+                                        : undefined,
+                          ...(header.id === 'log' ? { textAlign: 'right' as const } : {}),
                         }}
                       >
-                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                      </div>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
                     ))}
-                  </div>
+                  </TableRow>
                 ))}
-              </div>
-
-              {/* Rows */}
-              {table.getRowModel().rows.map((row) => (
-                <div
-                  key={row.id}
-                  className="flex items-center gap-6 border-b border-[#E4E1D7]/60 px-5 py-4 last:border-0 transition-colors hover:bg-[#F7F6F1]/40"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <div
-                      key={cell.id}
-                      style={{
-                        width: cell.column.id === 'blotter' ? '80px' :
-                               cell.column.id === 'priority' ? '72px' :
-                               cell.column.id === 'category' ? '80px' :
-                               cell.column.id === 'status' ? '72px' :
-                               cell.column.id === 'assignee' ? '120px' :
-                               cell.column.id === 'log' ? '90px' :
-                               undefined,
-                        ...(cell.column.id === 'log' ? { marginLeft: 'auto' } : {}),
-                        ...(cell.column.id === 'subject' ? { flex: 1 } : {}),
-                      }}
-                      className="whitespace-nowrap"
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} className="border-[#E4E1D7]/60 hover:bg-[#F7F6F1]/40">
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={`py-4 ${cell.column.id === 'blotter' ? 'pl-5' : cell.column.id === 'log' ? 'pr-5' : ''}`}
+                        style={{
+                          width:
+                            cell.column.id === 'blotter'
+                              ? '80px'
+                              : cell.column.id === 'priority'
+                                ? '72px'
+                                : cell.column.id === 'category'
+                                  ? '80px'
+                                  : cell.column.id === 'status'
+                                    ? '72px'
+                                    : cell.column.id === 'assignee'
+                                      ? '120px'
+                                      : cell.column.id === 'log'
+                                        ? '90px'
+                                        : undefined,
+                          ...(cell.column.id === 'log'
+                            ? { textAlign: 'right' as const }
+                            : {}),
+                        }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
 
             {/* Pagination */}
             <div className="mt-4 flex items-center justify-between">
@@ -673,7 +685,9 @@ export function TicketsListPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => { setPage(1); }}
+                  onClick={() => {
+                    setPage(1);
+                  }}
                   disabled={page <= 1}
                   className="grid size-7 place-items-center rounded-md border border-[#E4E1D7] text-[#6B6860] transition-colors hover:bg-[#F7F6F1] hover:text-[#1E3A5F] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#6B6860]"
                   title="First page"
@@ -682,7 +696,9 @@ export function TicketsListPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setPage((p) => Math.max(1, p - 1)); }}
+                  onClick={() => {
+                    setPage((p) => Math.max(1, p - 1));
+                  }}
                   disabled={page <= 1}
                   className="grid size-7 place-items-center rounded-md border border-[#E4E1D7] text-[#6B6860] transition-colors hover:bg-[#F7F6F1] hover:text-[#1E3A5F] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#6B6860]"
                   title="Previous page"
@@ -691,7 +707,9 @@ export function TicketsListPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setPage((p) => p + 1); }}
+                  onClick={() => {
+                    setPage((p) => p + 1);
+                  }}
                   disabled={page >= (meta?.totalPages ?? 1)}
                   className="grid size-7 place-items-center rounded-md border border-[#E4E1D7] text-[#6B6860] transition-colors hover:bg-[#F7F6F1] hover:text-[#1E3A5F] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#6B6860]"
                   title="Next page"
@@ -700,7 +718,9 @@ export function TicketsListPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setPage(meta?.totalPages ?? 1); }}
+                  onClick={() => {
+                    setPage(meta?.totalPages ?? 1);
+                  }}
                   disabled={page >= (meta?.totalPages ?? 1)}
                   className="grid size-7 place-items-center rounded-md border border-[#E4E1D7] text-[#6B6860] transition-colors hover:bg-[#F7F6F1] hover:text-[#1E3A5F] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#6B6860]"
                   title="Last page"
