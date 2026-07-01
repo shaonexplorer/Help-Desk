@@ -16,11 +16,12 @@ export const HealthController = {
 
     const resend = new Resend('re_4inQt3k1_PtJNUwEqaHEdMk6B6LnncgvM');
 
-    const { data, error } = await resend.emails.receiving.get(email_id);
+    const { data } = await resend.emails.receiving.get(email_id);
 
-    const { from, subject, text } = data;
-
-    console.log(from, subject, text);
+    if (data) {
+      const { from, subject, text } = data;
+      console.log(from, subject, text);
+    }
     res.json({ message: '👋 from Express + TypeScript!' });
   },
 };
