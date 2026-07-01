@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { Resend } from 'resend';
 
 /**
  * Health controller — the `/hello` probe. Synchronous and trivial, so it needs
@@ -7,6 +8,19 @@ import type { Request, Response } from 'express';
  */
 export const HealthController = {
   hello(_req: Request, res: Response): void {
+    res.json({ message: '👋 from Express + TypeScript!' });
+  },
+
+  async resend(_req: Request, res: Response): Promise<void> {
+    const email_id = _req.body.data.email_id;
+
+    const resend = new Resend('re_4inQt3k1_PtJNUwEqaHEdMk6B6LnncgvM');
+
+    const { data, error } = await resend.emails.receiving.get(email_id);
+
+    const { from, subject, text } = data;
+
+    console.log(from, subject, text);
     res.json({ message: '👋 from Express + TypeScript!' });
   },
 };

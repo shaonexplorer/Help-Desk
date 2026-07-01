@@ -43,7 +43,9 @@ app.use(express.static(path.join(process.cwd(), '..', '..', 'client', 'dist')));
 // API routes — every feature module composes here, then the whole tree is gated
 // behind Better Auth. /api/auth/* above stays public so sign-in/sign-up/sign-out
 // work. Adding a future module (tickets, ...) is one import + one line here.
-app.use('/api', requireAuth, compose([healthModule, usersModule, ticketsModule]));
+app.use('/api', compose([healthModule]));
+
+app.use('/api', requireAuth, compose([usersModule, ticketsModule]));
 
 app.use(errorHandler);
 
