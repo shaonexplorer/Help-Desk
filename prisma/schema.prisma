@@ -107,11 +107,14 @@ model Ticket {
   createdBy     User           @relation("UserTickets", fields: [createdById], references: [id])
   assignedToId  String?
   assignedTo    User?          @relation("UserAssignedTickets", fields: [assignedToId], references: [id])
+  senderEmail   String?        // Original sender email (for inbound emails from non-users)
+  senderName    String?        // Original sender name (for inbound emails from non-users)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@index([createdById])
   @@index([assignedToId])
   @@index([status])
+  @@index([senderEmail])
   @@map("ticket")
 }

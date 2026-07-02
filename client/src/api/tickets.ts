@@ -33,7 +33,8 @@ export interface TicketUser {
 
 /**
  * A single ticket as returned by the list endpoint, with the creator and
- * assignee names resolved for display.
+ * assignee names resolved for display. Also includes sender info for inbound
+ * email tickets.
  */
 export interface TicketWithUsers {
   id: string;
@@ -44,6 +45,8 @@ export interface TicketWithUsers {
   status: TicketStatus;
   createdById: string;
   assignedToId: string | null;
+  senderEmail: string | null;
+  senderName: string | null;
   createdAt: string;
   updatedAt: string;
   createdBy: TicketUser;
@@ -63,6 +66,8 @@ export interface Ticket {
   status: TicketStatus;
   createdById: string;
   assignedToId: string | null;
+  senderEmail: string | null;
+  senderName: string | null;
   createdAt: string;
   updatedAt: string;
 }

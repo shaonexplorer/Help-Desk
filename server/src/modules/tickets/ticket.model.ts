@@ -15,6 +15,8 @@ export const TICKET_SELECT = {
   status: true,
   createdById: true,
   assignedToId: true,
+  senderEmail: true,
+  senderName: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -28,6 +30,8 @@ export type TicketRow = {
   status: TicketStatus;
   createdById: string;
   assignedToId: string | null;
+  senderEmail: string | null;
+  senderName: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -49,6 +53,8 @@ export type CreateTicketInput = {
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
   category: string;
   assignedToId?: string | null;
+  senderEmail?: string | null;
+  senderName?: string | null;
 };
 
 /** Partial update payload — every field is optional. */
@@ -109,6 +115,8 @@ export const TicketModel = {
         { createdBy: { email: { contains: search, mode: 'insensitive' } } },
         { assignedTo: { name: { contains: search, mode: 'insensitive' } } },
         { assignedTo: { email: { contains: search, mode: 'insensitive' } } },
+        { senderEmail: { contains: search, mode: 'insensitive' } },
+        { senderName: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -157,12 +165,10 @@ export const TicketModel = {
 
   /**
    * Create a new ticket. `createdById` is always set from the authenticated
-   * session — the client never sends it.
+   * session — the client never sends it. senderEmail/senderName are optional
+   * and used for inbound email tickets from non-users.
    */
-  async createTicket(
-    input: CreateTicketInput,
-    createdById: string,
-  ): Promise<TicketRow> {
+  async createTicket(input: CreateTicketInput, createdById: string): Promise<TicketRow> {
     return prisma.ticket.create({
       data: {
         subject: input.subject,
@@ -171,6 +177,8 @@ export const TicketModel = {
         category: input.category,
         assignedToId: input.assignedToId ?? null,
         createdById,
+        senderEmail: input.senderEmail ?? null,
+        senderName: input.senderName ?? null,
       },
       select: TICKET_SELECT,
     });
@@ -183,10 +191,7 @@ export const TicketModel = {
    * ticket doesn't exist. The controller is responsible for validating the
    * assignee before calling this.
    */
-  async updateTicket(
-    id: string,
-    input: UpdateTicketInput,
-  ): Promise<TicketWithUsers | null> {
+  async updateTicket(id: string, input: UpdateTicketInput): Promise<TicketWithUsers | null> {
     const existing = await prisma.ticket.findUnique({
       where: { id },
       select: { id: true },

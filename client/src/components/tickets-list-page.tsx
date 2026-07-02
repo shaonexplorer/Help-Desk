@@ -37,6 +37,7 @@ import {
   ChevronsRight,
   SlidersHorizontal,
   X,
+  Mail,
 } from 'lucide-react';
 
 /**
@@ -242,13 +243,22 @@ const columns = [
     header: ({ column }) => <SortableHeader column={column}>Subject</SortableHeader>,
     cell: (info) => {
       const ticket = info.row.original;
+      // Prioritize sender info (inbound emails) over internal creator
+      const senderDisplay = ticket.senderName
+        ? ticket.senderName
+        : ticket.senderEmail
+          ? ticket.senderEmail
+          : ticket.createdBy.name ?? ticket.createdBy.email;
+      const showEnvelope = !!(ticket.senderEmail || ticket.senderName);
+
       return (
         <Link to={`/tickets/${ticket.id}`} className="group block min-w-0 max-w-xs">
           <p className="truncate text-sm font-medium tracking-tight text-[#16150F] underline-offset-2 group-hover:underline group-hover:text-[#1E3A5F] transition-colors">
             {info.getValue()}
           </p>
-          <p className="truncate text-xs text-[#6B6860]">
-            by {ticket.createdBy.name ?? ticket.createdBy.email}
+          <p className="truncate text-xs text-[#6B6860] flex items-center gap-1">
+            {showEnvelope && <Mail className="size-3 shrink-0" />}
+            <span>from {senderDisplay}</span>
           </p>
         </Link>
       );
