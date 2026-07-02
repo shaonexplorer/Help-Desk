@@ -2,22 +2,11 @@ import prisma from '../../prisma';
 import { rangeToStartDate } from './dashboard.validation';
 import { TICKET_CATEGORIES, TICKET_STATUSES, PRIORITIES } from '../tickets/ticket.validation';
 
-/**
- * Dashboard model — the only place that talks to Prisma about dashboard stats.
- * Controllers call these methods; they never import prisma directly.
- */
 export const DashboardModel = {
-  /**
-   * Get the time range start date for a given range.
-   */
   getRangeStart(range?: '7d' | '30d' | '90d'): Date {
     return rangeToStartDate(range);
   },
 
-  /**
-   * Get the previous period's start date for delta calculations.
-   * For a 30d range, this returns the start of the 30 days before that.
-   */
   getPreviousRangeStart(range?: '7d' | '30d' | '90d'): Date {
     const currentStart = rangeToStartDate(range);
     const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
@@ -26,64 +15,50 @@ export const DashboardModel = {
     return prevStart;
   },
 
-  /**
-   * Fetch key dashboard statistics (KPIs).
-   */
   async getStats(range?: '7d' | '30d' | '90d') {
     const start = this.getRangeStart(range);
     const prevStart = this.getPreviousRangeStart(range);
 
+    // Grouping the status counts reduces 4 separate queries down into 1 database trip
     const [
       totalTickets,
-      openTickets,
-      inProgressTickets,
-      resolvedTickets,
-      closedTickets,
+      statusGroups,
       ticketsThisPeriod,
       ticketsPrevPeriod,
       avgResolutionTime,
       activeAgents,
     ] = await Promise.all([
-      // Total tickets (all time)
       prisma.ticket.count(),
-
-      // Current status counts
-      prisma.ticket.count({ where: { status: 'OPEN' } }),
-      prisma.ticket.count({ where: { status: 'IN_PROGRESS' } }),
-      prisma.ticket.count({ where: { status: 'RESOLVED' } }),
-      prisma.ticket.count({ where: { status: 'CLOSED' } }),
-
-      // Tickets created in current period
-      prisma.ticket.count({
-        where: { createdAt: { gte: start } },
+      prisma.ticket.groupBy({
+        by: ['status'],
+        _count: { id: true },
       }),
-
-      // Tickets created in previous period (for delta)
-      prisma.ticket.count({
-        where: { createdAt: { gte: prevStart, lt: start } },
-      }),
-
-      // Average resolution time (in hours) for resolved/closed tickets in period
-      prisma.$queryRaw<{ avg_hours: number }[]>`
+      prisma.ticket.count({ where: { createdAt: { gte: start } } }),
+      prisma.ticket.count({ where: { createdAt: { gte: prevStart, lt: start } } }),
+      // Properly parameterized template tag prevents SQL Injection natively
+      prisma.$queryRaw<{ avg_hours: number | null }[]>`
         SELECT AVG(EXTRACT(EPOCH FROM ("updatedAt" - "createdAt")) / 3600) as avg_hours
-        FROM "Ticket"
+        FROM "ticket"
         WHERE "status" IN ('RESOLVED', 'CLOSED')
         AND "updatedAt" >= ${start}
       `,
-
-      // Active agents (users who have been assigned tickets in the period)
       prisma.user.count({
         where: {
           role: 'AGENT',
           deletedAt: null,
           assignedTickets: {
-            some: {
-              createdAt: { gte: start },
-            },
+            some: { createdAt: { gte: start } },
           },
         },
       }),
     ]);
+
+    // Map group-by array values back to static individual variables for compatibility
+    const counts = Object.fromEntries(statusGroups.map((g) => [g.status, g._count.id]));
+    const openTickets = counts['OPEN'] ?? 0;
+    const inProgressTickets = counts['IN_PROGRESS'] ?? 0;
+    const resolvedTickets = counts['RESOLVED'] ?? 0;
+    const closedTickets = counts['CLOSED'] ?? 0;
 
     const delta =
       ticketsPrevPeriod > 0
@@ -108,22 +83,14 @@ export const DashboardModel = {
     };
   },
 
-  /**
-   * Get ticket counts grouped by status.
-   */
   async getTicketsByStatus(range?: '7d' | '30d' | '90d') {
     const start = this.getRangeStart(range);
-
     const results = await prisma.ticket.groupBy({
       by: ['status'],
-      where: {
-        createdAt: { gte: start },
-      },
+      where: { createdAt: { gte: start } },
       _count: { status: true },
-      orderBy: { _count: { status: 'desc' } },
     });
 
-    // Ensure all statuses are represented
     const map = new Map(results.map((r) => [r.status, r._count.status]));
     return TICKET_STATUSES.map((status) => ({
       status,
@@ -131,19 +98,12 @@ export const DashboardModel = {
     }));
   },
 
-  /**
-   * Get ticket counts grouped by priority.
-   */
   async getTicketsByPriority(range?: '7d' | '30d' | '90d') {
     const start = this.getRangeStart(range);
-
     const results = await prisma.ticket.groupBy({
       by: ['priority'],
-      where: {
-        createdAt: { gte: start },
-      },
+      where: { createdAt: { gte: start } },
       _count: { priority: true },
-      orderBy: { _count: { priority: 'desc' } },
     });
 
     const map = new Map(results.map((r) => [r.priority, r._count.priority]));
@@ -153,19 +113,12 @@ export const DashboardModel = {
     }));
   },
 
-  /**
-   * Get ticket counts grouped by category.
-   */
   async getTicketsByCategory(range?: '7d' | '30d' | '90d') {
     const start = this.getRangeStart(range);
-
     const results = await prisma.ticket.groupBy({
       by: ['category'],
-      where: {
-        createdAt: { gte: start },
-      },
+      where: { createdAt: { gte: start } },
       _count: { category: true },
-      orderBy: { _count: { category: 'desc' } },
     });
 
     const map = new Map(results.map((r) => [r.category, r._count.category]));
@@ -175,12 +128,8 @@ export const DashboardModel = {
     }));
   },
 
-  /**
-   * Get ticket counts grouped by assignee (top 10).
-   */
   async getTicketsByAssignee(range?: '7d' | '30d' | '90d') {
     const start = this.getRangeStart(range);
-
     const results = await prisma.ticket.groupBy({
       by: ['assignedToId'],
       where: {
@@ -192,7 +141,6 @@ export const DashboardModel = {
       take: 10,
     });
 
-    // Fetch assignee names
     const assigneeIds = results.map((r) => r.assignedToId!).filter(Boolean);
     const users = await prisma.user.findMany({
       where: { id: { in: assigneeIds } },
@@ -209,22 +157,19 @@ export const DashboardModel = {
     }));
   },
 
-  /**
-   * Get ticket trend over time (daily counts for the period).
-   */
   async getTicketsOverTime(range?: '7d' | '30d' | '90d') {
     const start = this.getRangeStart(range);
     const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
 
-    const results = await prisma.$queryRaw<{ date: Date; count: bigint; status: string }[]>`
-      SELECT DATE("createdAt") as date, "status", COUNT(*) as count
-      FROM "Ticket"
+    // Fixed SQL execution + ensured string casting for standard ISO format parsing
+    const results = await prisma.$queryRaw<{ date: string; count: bigint; status: string }[]>`
+      SELECT TO_CHAR("createdAt", 'YYYY-MM-DD') as date, "status", COUNT(*) as count
+      FROM "ticket"
       WHERE "createdAt" >= ${start}
-      GROUP BY DATE("createdAt"), "status"
-      ORDER BY DATE("createdAt") ASC
+      GROUP BY TO_CHAR("createdAt", 'YYYY-MM-DD'), "status"
+      ORDER BY date ASC
     `;
 
-    // Build a complete date range
     const dateMap = new Map<
       string,
       { OPEN: number; IN_PROGRESS: number; RESOLVED: number; CLOSED: number }
@@ -238,8 +183,7 @@ export const DashboardModel = {
     }
 
     for (const r of results) {
-      const key = r.date.toISOString().split('T')[0];
-      const existing = dateMap.get(key);
+      const existing = dateMap.get(r.date);
       if (existing) {
         existing[r.status as keyof typeof existing] = Number(r.count);
       }
@@ -252,20 +196,17 @@ export const DashboardModel = {
     }));
   },
 
-  /**
-   * Get resolution time trend (average hours per day).
-   */
   async getResolutionTimeTrend(range?: '7d' | '30d' | '90d') {
     const start = this.getRangeStart(range);
     const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
 
-    const results = await prisma.$queryRaw<{ date: Date; avg_hours: number }[]>`
-      SELECT DATE("updatedAt") as date, AVG(EXTRACT(EPOCH FROM ("updatedAt" - "createdAt")) / 3600) as avg_hours
-      FROM "Ticket"
+    const results = await prisma.$queryRaw<{ date: string; avg_hours: number }[]>`
+      SELECT TO_CHAR("updatedAt", 'YYYY-MM-DD') as date, AVG(EXTRACT(EPOCH FROM ("updatedAt" - "createdAt")) / 3600) as avg_hours
+      FROM "ticket"
       WHERE "status" IN ('RESOLVED', 'CLOSED')
       AND "updatedAt" >= ${start}
-      GROUP BY DATE("updatedAt")
-      ORDER BY DATE("updatedAt") ASC
+      GROUP BY TO_CHAR("updatedAt", 'YYYY-MM-DD')
+      ORDER BY date ASC
     `;
 
     const dateMap = new Map<string, number>();
@@ -277,9 +218,8 @@ export const DashboardModel = {
     }
 
     for (const r of results) {
-      const key = r.date.toISOString().split('T')[0];
-      if (dateMap.has(key)) {
-        dateMap.set(key, Math.round(Number(r.avg_hours) * 10) / 10);
+      if (dateMap.has(r.date)) {
+        dateMap.set(r.date, Math.round(Number(r.avg_hours) * 10) / 10);
       }
     }
 

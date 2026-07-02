@@ -16,16 +16,19 @@ interface ResolutionTimeTrendChartProps {
   title?: string;
 }
 
-export function ResolutionTimeTrendChart({ data, title = 'Avg Resolution Time (hrs)' }: ResolutionTimeTrendChartProps) {
+export function ResolutionTimeTrendChart({
+  data,
+  title = 'Avg Resolution Time (hrs)',
+}: ResolutionTimeTrendChartProps) {
   const chartData = useMemo(() => {
-    return data.map(d => ({
+    return data.map((d) => ({
       date: d.date,
       label: d.date.split('-').slice(1).join('/'),
       avgHours: d.avgHours,
     }));
   }, [data]);
 
-  const hasData = chartData.some(d => d.avgHours > 0);
+  const hasData = chartData.some((d) => d.avgHours > 0);
 
   if (!hasData) {
     return (
@@ -62,7 +65,7 @@ export function ResolutionTimeTrendChart({ data, title = 'Avg Resolution Time (h
               axisLine={false}
               tickLine={false}
               dx={-4}
-              tickFormatter={v => `${v}h`}
+              tickFormatter={(v) => `${v}h`}
             />
             <Tooltip
               contentStyle={{

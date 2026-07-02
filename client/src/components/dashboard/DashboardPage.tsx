@@ -68,7 +68,7 @@ export function Dashboard() {
     overTimeQuery.isError ||
     resolutionQuery.isError;
 
-  // console.log(resolutionQuery.isError);
+  // console.log(overTimeQuery.data?.data);
 
   const stats = statsQuery.data?.stats;
   const statusData = statusQuery.data?.data ?? [];
@@ -100,21 +100,23 @@ export function Dashboard() {
     );
   }
 
-  // if (isError) {
-  //   return (
-  //     <main className="flex-1 p-6 space-y-6">
-  //       <div className="flex items-center justify-between">
-  //         <div>
-  //           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-  //           <p className="text-sm text-muted-foreground">Analytical overview of your help desk</p>
-  //         </div>
-  //       </div>
-  //       <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
-  //         <p className="text-destructive text-sm">Failed to load dashboard data. Please try again.</p>
-  //       </div>
-  //     </main>
-  //   );
-  // }
+  if (isError) {
+    return (
+      <main className="flex-1 p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+            <p className="text-sm text-muted-foreground">Analytical overview of your help desk</p>
+          </div>
+        </div>
+        <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+          <p className="text-destructive text-sm">
+            Failed to load dashboard data. Please try again.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex-1 p-6 space-y-6">
