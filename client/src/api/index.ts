@@ -20,3 +20,30 @@ export type {
   CreateTicketInput,
   UpdateTicketInput,
 } from "./tickets";
+export {
+  fetchDashboardStats,
+  fetchTicketsByStatus,
+  fetchTicketsByPriority,
+  fetchTicketsByCategory,
+  fetchTicketsByAssignee,
+  fetchTicketsOverTime,
+  fetchResolutionTimeTrend,
+} from "./dashboard";
+export type {
+  DashboardRange,
+  DashboardStats,
+  StatsResponse,
+  TicketsByStatusItem,
+  TicketsByStatusResponse,
+  TicketsByPriorityItem,
+  TicketsByPriorityResponse,
+  TicketsByCategoryItem,
+  TicketsByCategoryResponse,
+  TicketsByAssigneeItem,
+  TicketsByAssigneeResponse,
+  TicketsOverTimeItem,
+  TicketsOverTimeResponse,
+  ResolutionTimeTrendItem,
+  ResolutionTimeTrendResponse,
+  DashboardQueryParams,
+} from "./dashboard";

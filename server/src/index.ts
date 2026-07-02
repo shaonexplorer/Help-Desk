@@ -9,6 +9,7 @@ import { healthModule } from './modules/health';
 import { usersModule } from './modules/users';
 import { ticketsModule } from './modules/tickets';
 import { webhooksModule } from './modules/webhooks';
+import { dashboardModule } from './modules/dashboard';
 
 import path from 'path';
 import { toNodeHandler } from 'better-auth/node';
@@ -47,7 +48,7 @@ app.use(express.static(path.join(process.cwd(), '..', '..', 'client', 'dist')));
 // Webhooks are public but verified by Resend signature, not auth.
 app.use('/api', compose([healthModule, webhooksModule]));
 
-app.use('/api', requireAuth, compose([usersModule, ticketsModule]));
+app.use('/api', requireAuth, compose([usersModule, ticketsModule, dashboardModule]));
 
 app.use(errorHandler);
 

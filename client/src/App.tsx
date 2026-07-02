@@ -3,13 +3,14 @@ import { AuthProvider } from '@/lib/auth';
 import { ProtectedRoute } from '@/components/protected-route';
 import { PublicRoute } from '@/components/public-route';
 import { LoginPage } from '@/components/login-page';
-import { Dashboard } from '@/components/dashboard';
+
 import { UsersListPage } from '@/components/users-list-page';
 import { CreateUserPage } from '@/components/create-user-page';
 import { CreateTicketPage } from '@/components/create-ticket-page';
 import { TicketsListPage } from '@/components/tickets-list-page';
 import { TicketDetailPage } from '@/components/ticket-detail-page';
 import { AppShell } from '@/components/app-shell';
+import { DashboardPage } from './components/dashboard';
 
 export function App() {
   return (
@@ -21,7 +22,7 @@ export function App() {
             element={
               <ProtectedRoute>
                 <AppShell>
-                  <Dashboard />
+                  <DashboardPage />
                 </AppShell>
               </ProtectedRoute>
             }
