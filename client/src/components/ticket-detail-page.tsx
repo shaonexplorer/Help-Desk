@@ -11,16 +11,7 @@ import {
   type TicketCategory,
   type TicketStatus,
 } from '@/api';
-import {
-  ArrowLeft,
-  User,
-  Clock,
-  Tag,
-  AlertTriangle,
-  UserPlus,
-  X,
-  Check,
-} from 'lucide-react';
+import { ArrowLeft, User, Clock, Tag, AlertTriangle, UserPlus, X, Check, Mail } from 'lucide-react';
 
 /**
  * Ticket detail — the incident file pulled from a cabinet, now with a dispatch
@@ -192,7 +183,12 @@ export function TicketDetailPage() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { data, isLoading, isError, error: queryError } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError,
+    error: queryError,
+  } = useQuery({
     queryKey: ['ticket', id],
     queryFn: () => fetchTicket(id!),
     enabled: !!id,
@@ -292,7 +288,11 @@ export function TicketDetailPage() {
             <div className="flex gap-8">
               <div className="flex-1 space-y-3 rounded-xl border border-[#E4E1D7] bg-white p-6">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <span key={i} className="block h-3 rounded bg-[#E4E1D7]" style={{ width: `${70 + Math.random() * 30}%` }} />
+                  <span
+                    key={i}
+                    className="block h-3 rounded bg-[#E4E1D7]"
+                    style={{ width: `${70 + Math.random() * 30}%` }}
+                  />
                 ))}
               </div>
               <div className="w-48 space-y-4">
@@ -362,7 +362,9 @@ export function TicketDetailPage() {
                     className={`relative flex w-full items-center gap-2.5 rounded-lg border pl-2.5 pr-3 py-2 text-left transition-colors disabled:opacity-50 ${STATUS_BORDER[ticket.status]} ${STATUS_BG[ticket.status]} hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30`}
                   >
                     {/* Color bar — the signature tab */}
-                    <span className={`h-5 w-1 shrink-0 rounded-full ${STATUS_BAR[ticket.status]}`} />
+                    <span
+                      className={`h-5 w-1 shrink-0 rounded-full ${STATUS_BAR[ticket.status]}`}
+                    />
                     <span className={`size-2 shrink-0 rounded-full ${STATUS_DOT[ticket.status]}`} />
                     <span className={`flex-1 text-sm font-medium ${STATUS_TEXT[ticket.status]}`}>
                       {STATUS_SEGMENTS.find((s) => s.value === ticket.status)?.label}
@@ -384,11 +386,7 @@ export function TicketDetailPage() {
                   {/* Dispatch menu — a vertical progression of states. The current
                       state is checked; hovering previews the destination. */}
                   {openStatus && (
-                    <div
-                      className="relative mt-1"
-                      role="listbox"
-                      aria-label="Change ticket status"
-                    >
+                    <div className="relative mt-1" role="listbox" aria-label="Change ticket status">
                       <div className="absolute left-0 right-0 z-30 overflow-hidden rounded-lg border border-[#E4E1D7] bg-white py-1 shadow-lg shadow-[#16150F]/5">
                         {STATUS_SEGMENTS.map((seg) => {
                           const isActive = ticket.status === seg.value;
@@ -406,13 +404,15 @@ export function TicketDetailPage() {
                                 isActive ? 'bg-[#F7F6F1]' : ''
                               }`}
                             >
-                              <span className={`size-2 shrink-0 rounded-full ${STATUS_DOT[seg.value]}`} />
-                              <span className={`flex-1 text-sm ${isActive ? 'font-medium text-[#16150F]' : 'text-[#6B6860]'}`}>
+                              <span
+                                className={`size-2 shrink-0 rounded-full ${STATUS_DOT[seg.value]}`}
+                              />
+                              <span
+                                className={`flex-1 text-sm ${isActive ? 'font-medium text-[#16150F]' : 'text-[#6B6860]'}`}
+                              >
                                 {seg.label}
                               </span>
-                              {isActive && (
-                                <Check className="size-3.5 text-[#1E3A5F]" />
-                              )}
+                              {isActive && <Check className="size-3.5 text-[#1E3A5F]" />}
                             </button>
                           );
                         })}
@@ -438,7 +438,7 @@ export function TicketDetailPage() {
                 </RailItem>
 
                 {/* Assigned to — delegate card */}
-                <div>
+                <div className="">
                   <p className="mb-1.5 text-[11px] uppercase tracking-[0.08em] text-[#C7C4BB]">
                     Assigned to
                   </p>
@@ -452,7 +452,7 @@ export function TicketDetailPage() {
                       </span>
                     </div>
                   ) : (
-                    <span className="text-sm text-[#C7C4BB]">Unassigned</span>
+                    <span className="text-sm text-[#C7C4BB] mr-1.5">Unassigned</span>
                   )}
                   <button
                     type="button"
@@ -465,10 +465,23 @@ export function TicketDetailPage() {
                   </button>
                 </div>
 
-                {/* Opened by */}
-                <RailItem icon={User} label="Opened by">
-                  {ticket.createdBy.name ?? ticket.createdBy.email}
-                </RailItem>
+                {/* Sender (for inbound emails) or Opened by (fallback) */}
+                {ticket.senderEmail || ticket.senderName ? (
+                  <RailItem icon={Mail} label="Sender">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm text-[#16150F]">
+                        {ticket.senderName ?? ticket.senderEmail}
+                      </span>
+                      {ticket.senderEmail && ticket.senderName && (
+                        <span className="text-xs text-[#6B6860]">{ticket.senderEmail}</span>
+                      )}
+                    </div>
+                  </RailItem>
+                ) : (
+                  <RailItem icon={User} label="Opened by">
+                    {ticket.createdBy.name ?? ticket.createdBy.email}
+                  </RailItem>
+                )}
 
                 {/* Timestamps */}
                 <RailItem icon={Clock} label="Opened">

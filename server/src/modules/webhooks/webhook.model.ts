@@ -209,6 +209,8 @@ export async function createTicketFromEmail(emailId: string): Promise<TicketRow>
       priority,
       category,
       assignedToId: null, // Unassigned by default - will be triaged
+      senderEmail,
+      senderName,
     },
     createdById,
   );
