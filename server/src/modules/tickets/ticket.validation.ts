@@ -132,6 +132,7 @@ export type TicketListQuery = {
   sort: SortField;
   order: 'asc' | 'desc';
   priority?: Priority[];
+  status?: TicketStatus[];
   category?: TicketCategory[];
   assignee?: string;
   search?: string;
@@ -216,6 +217,18 @@ export function validateTicketListQuery(
     }
   }
 
+  // Status — comma-separated, each must be a valid status
+  let status: TicketStatus[] | undefined;
+  if (query.status !== undefined && typeof query.status === 'string' && query.status.length > 0) {
+    const parts = query.status.split(',').map((s) => s.trim().toUpperCase());
+    const invalid = parts.filter((s) => !TICKET_STATUSES.includes(s as TicketStatus));
+    if (invalid.length > 0) {
+      errors.push(`"status" contains invalid values: ${invalid.join(', ')}`);
+    } else {
+      status = parts as TicketStatus[];
+    }
+  }
+
   // Assignee — optional, single id or "__unassigned__"
   let assignee: string | undefined;
   if (query.assignee !== undefined && typeof query.assignee === 'string' && query.assignee.length > 0) {
@@ -243,6 +256,7 @@ export function validateTicketListQuery(
     sort,
     order,
     ...(priority ? { priority } : {}),
+    ...(status ? { status } : {}),
     ...(category ? { category } : {}),
     ...(assignee ? { assignee } : {}),
     ...(search ? { search } : {}),

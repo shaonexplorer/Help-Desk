@@ -93,6 +93,7 @@ const PRIORITY_LABELS: Record<TicketPriority, string> = {
 };
 
 const ALL_PRIORITIES: TicketPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+const ALL_STATUSES: TicketStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
 function PriorityBadge({ priority }: { priority: TicketPriority }) {
   return (
@@ -315,6 +316,7 @@ export function TicketsListPage() {
   const [limit, setLimit] = useState(10);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'log', desc: true }]);
   const [priorityFilter, setPriorityFilter] = useState<TicketPriority[]>([]);
+  const [statusFilter, setStatusFilter] = useState<TicketStatus[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<TicketCategory[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [searchInput, setSearchInput] = useState(''); // immediate input value
@@ -344,6 +346,7 @@ export function TicketsListPage() {
     sort: sortField,
     order: sortOrder,
     ...(priorityFilter.length > 0 ? { priority: priorityFilter.join(',') } : {}),
+    ...(statusFilter.length > 0 ? { status: statusFilter.join(',') } : {}),
     ...(categoryFilter.length > 0 ? { category: categoryFilter.join(',') } : {}),
     ...(assigneeFilter ? { assignee: assigneeFilter } : {}),
     ...(searchQuery ? { search: searchQuery } : {}),
@@ -376,6 +379,7 @@ export function TicketsListPage() {
 
   const hasActiveFilters =
     priorityFilter.length > 0 ||
+    statusFilter.length > 0 ||
     categoryFilter.length > 0 ||
     assigneeFilter !== '' ||
     searchQuery !== '';
@@ -408,6 +412,11 @@ export function TicketsListPage() {
     setPage(1);
   }, []);
 
+  const toggleStatus = useCallback((s: TicketStatus) => {
+    setStatusFilter((prev) => (prev.includes(s) ? prev.filter((v) => v !== s) : [...prev, s]));
+    setPage(1);
+  }, []);
+
   const toggleCategory = useCallback((c: TicketCategory) => {
     setCategoryFilter((prev) => (prev.includes(c) ? prev.filter((v) => v !== c) : [...prev, c]));
     setPage(1);
@@ -415,6 +424,7 @@ export function TicketsListPage() {
 
   const clearAllFilters = useCallback(() => {
     setPriorityFilter([]);
+    setStatusFilter([]);
     setCategoryFilter([]);
     setAssigneeFilter('');
     setSearchInput('');
@@ -494,6 +504,20 @@ export function TicketsListPage() {
                 label={CATEGORY_LABELS[c]}
                 active={categoryFilter.includes(c)}
                 onClick={() => toggleCategory(c)}
+              />
+            ))}
+          </div>
+
+          <span className="h-4 w-px bg-[#E4E1D7]" />
+
+          {/* Status pills */}
+          <div className="flex items-center gap-1">
+            {ALL_STATUSES.map((s) => (
+              <FilterPill
+                key={s}
+                label={STATUS_LABELS[s]}
+                active={statusFilter.includes(s)}
+                onClick={() => toggleStatus(s)}
               />
             ))}
           </div>

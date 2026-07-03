@@ -86,13 +86,17 @@ export const TicketModel = {
   async paginatedList(
     query: TicketListQuery,
   ): Promise<{ tickets: TicketWithUsers[]; meta: TicketsListMeta }> {
-    const { page, limit, sort, order, priority, category, assignee, search } = query;
+    const { page, limit, sort, order, priority, status, category, assignee, search } = query;
 
     // Build the where clause from filters.
     const where: Prisma.TicketWhereInput = {};
 
     if (priority && priority.length > 0) {
       where.priority = { in: priority };
+    }
+
+    if (status && status.length > 0) {
+      where.status = { in: status };
     }
 
     if (category && category.length > 0) {
