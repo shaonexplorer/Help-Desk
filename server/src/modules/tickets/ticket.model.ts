@@ -1,6 +1,27 @@
 import prisma from '../../prisma';
-import type { TicketListQuery, TicketStatus } from './ticket.validation';
+import type { TicketListQuery, TicketStatus, TicketMessageType } from './ticket.validation';
 import { Prisma } from '@prisma/client';
+
+/**
+ * The fields a ticket message response is allowed to expose.
+ */
+export const TICKET_MESSAGE_SELECT = {
+  id: true,
+  content: true,
+  messageType: true,
+  createdAt: true,
+  senderEmail: true,
+  senderName: true,
+} as const;
+
+export type TicketMessageRow = {
+  id: string;
+  content: string;
+  messageType: TicketMessageType;
+  createdAt: Date;
+  senderEmail: string | null;
+  senderName: string | null;
+};
 
 /**
  * The fields a ticket response is allowed to expose. Selecting explicitly means
@@ -215,5 +236,79 @@ export const TicketModel = {
         assignedTo: { select: USER_MINI_SELECT },
       },
     });
+  },
+
+  /**
+   * Add a message to a ticket and return the updated ticket with messages.
+   */
+  async addMessage(
+    ticketId: string,
+    input: {
+      content: string;
+      messageType: TicketMessageType;
+      senderEmail?: string | null;
+      senderName?: string | null;
+    }
+  ): Promise<TicketWithUsers | null> {
+    const existing = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { id: true },
+    });
+    if (!existing) return null;
+
+    // Create the message and return the updated ticket with messages
+    const updated = await prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        messages: {
+          create: {
+            content: input.content,
+            messageType: input.messageType,
+            senderEmail: input.senderEmail ?? null,
+            senderName: input.senderName ?? null,
+          },
+        },
+      },
+      select: {
+        ...TICKET_SELECT,
+        createdBy: { select: USER_MINI_SELECT },
+        assignedTo: { select: USER_MINI_SELECT },
+        messages: {
+          select: TICKET_MESSAGE_SELECT,
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    return updated as TicketWithUsers;
+  },
+
+  /**
+   * Get all messages for a ticket.
+   */
+  async getMessages(ticketId: string): Promise<TicketMessageRow[]> {
+    return prisma.ticketMessage.findMany({
+      where: { ticketId },
+      select: TICKET_MESSAGE_SELECT,
+      orderBy: { createdAt: 'asc' },
+    });
+  },
+
+  /**
+   * Find a single ticket by id with messages included.
+   */
+  async findByIdWithMessages(id: string): Promise<TicketWithUsers | null> {
+    return prisma.ticket.findUnique({
+      where: { id },
+      select: {
+        ...TICKET_SELECT,
+        createdBy: { select: USER_MINI_SELECT },
+        assignedTo: { select: USER_MINI_SELECT },
+        messages: {
+          select: TICKET_MESSAGE_SELECT,
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    }) as Promise<TicketWithUsers | null>;
   },
 };

@@ -3,7 +3,7 @@ import { asyncHandler, HttpError } from '../../core';
 import { TicketModel } from './ticket.model';
 import { UserModel } from '../users/user.model';
 import { validateIdParam } from '../users/user.validation';
-import { validateCreateTicketBody, validateTicketListQuery, validateUpdateTicketBody } from './ticket.validation';
+import { validateCreateTicketBody, validateTicketListQuery, validateUpdateTicketBody, validateCreateTicketMessageBody } from './ticket.validation';
 
 /**
  * Ticket controller — owns the HTTP layer for ticket resources. It shapes the
@@ -94,5 +94,52 @@ export const TicketController = {
     if (!ticket) throw new HttpError(404, 'Ticket not found');
 
     res.json({ ticket });
+  }),
+
+  /**
+   * Reply to a ticket by adding a message. Creates a new message and returns
+   * the updated ticket with messages included.
+   */
+  reply: asyncHandler(async (req: Request, res: Response) => {
+    const idResult = validateIdParam({ id: req.params.id });
+    if (!idResult.ok) throw new HttpError(400, idResult.errors.join(', '));
+
+    const bodyResult = validateCreateTicketMessageBody(req.body);
+    if (!bodyResult.ok) throw new HttpError(400, bodyResult.errors.join(', '));
+
+    const { content, messageType, senderEmail, senderName } = bodyResult.value;
+
+    const ticket = await TicketModel.addMessage(idResult.value, {
+      content,
+      messageType,
+      senderEmail: senderEmail ?? null,
+      senderName: senderName ?? null,
+    });
+
+    if (!ticket) throw new HttpError(404, 'Ticket not found');
+
+    // Auto-update status based on message type if needed
+    let resultTicket = ticket;
+    if (messageType === 'AGENT_REPLY' && ticket.status === 'OPEN') {
+      const updatedTicket = await TicketModel.updateTicket(idResult.value, {
+        status: 'IN_PROGRESS',
+      });
+      if (updatedTicket) {
+        resultTicket = updatedTicket;
+      }
+    }
+
+    res.json({ ticket: resultTicket });
+  }),
+
+  /**
+   * Get messages for a ticket.
+   */
+  getMessages: asyncHandler(async (req: Request, res: Response) => {
+    const idResult = validateIdParam({ id: req.params.id });
+    if (!idResult.ok) throw new HttpError(400, idResult.errors.join(', '));
+
+    const messages = await TicketModel.getMessages(idResult.value);
+    res.json({ messages });
   }),
 };

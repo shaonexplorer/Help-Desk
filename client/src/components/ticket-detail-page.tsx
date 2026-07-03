@@ -5,22 +5,37 @@ import {
   fetchTicket,
   fetchUsers,
   updateTicket,
+  replyToTicket,
+  fetchTicketMessages,
   type TicketWithUsers,
   type TicketsListResponse,
   type TicketPriority,
   type TicketCategory,
   type TicketStatus,
+  type TicketMessage,
 } from '@/api';
-import { ArrowLeft, User, Clock, Tag, AlertTriangle, UserPlus, X, Check, Mail } from 'lucide-react';
+import {
+  ArrowLeft,
+  User,
+  Clock,
+  Tag,
+  AlertTriangle,
+  UserPlus,
+  X,
+  Check,
+  Mail,
+  Send,
+  Shield,
+} from 'lucide-react';
 
 /**
  * Ticket detail — the incident file pulled from a cabinet, now with a dispatch
- * rail.
+ * rail and conversation thread.
  *
  * Where the blotter scans rows at a glance, this page reads like an opened
  * file: a call-number header, a case title, a reading area for the description,
- * and a metadata rail with the filing details. The blotter prefix is the hero —
- * large monospace type that anchors the page immediately.
+ * a conversation thread, and a metadata rail with the filing details. The blotter
+ * prefix is the hero — large monospace type that anchors the page immediately.
  *
  * The rail is no longer passive. Status is a segmented control (the four states
  * of a case's lifecycle) and the assignee is a delegate card with a button that
@@ -67,6 +82,13 @@ function monogramFor(user: { name: string | null; email: string }): string {
 function handleFor(email: string): string {
   const local = email.split('@')[0] ?? '';
   return `@${local}`;
+}
+
+/** Get display name for a message sender. */
+function getMessageSenderName(message: TicketMessage): string {
+  if (message.senderName) return message.senderName;
+  if (message.senderEmail) return message.senderEmail;
+  return 'Unknown';
 }
 
 // ─── Priority badge (full-width variant for the rail) ────────────────────────
@@ -169,6 +191,41 @@ function RailItem({
   );
 }
 
+// ─── Message bubble ───────────────────────────────────────────────────────────
+
+function MessageBubble({ message }: { message: TicketMessage }) {
+  const isInbound = message.messageType === 'INBOUND_EMAIL';
+  const isAgentReply = message.messageType === 'AGENT_REPLY';
+
+  const containerClasses = `
+    flex w-full max-w-3xl rounded-lg px-4 py-3
+    ${isInbound ? 'bg-[#F0F4F8] ml-auto' : 'bg-white border border-[#E4E1D7]'}
+  `;
+
+  return (
+    <div className={containerClasses}>
+      <div className="flex items-start gap-2.5">
+        {isInbound ? (
+          <Mail className="size-5 shrink-0 text-[#1E3A5F] mt-0.5" />
+        ) : isAgentReply ? (
+          <Shield className="size-5 shrink-0 text-[#2F7D4F] mt-0.5" />
+        ) : (
+          <Send className="size-5 shrink-0 text-[#1E3A5F] mt-0.5" />
+        )}
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-medium text-[#6B6860]">
+              {getMessageSenderName(message)}
+            </span>
+            <span className="text-xs text-[#C7C4BB]">{relativeTime(message.createdAt)}</span>
+          </div>
+          <p className="text-sm text-[#16150F] whitespace-pre-wrap">{message.content}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page component ──────────────────────────────────────────────────────────
 
 export function TicketDetailPage() {
@@ -182,6 +239,8 @@ export function TicketDetailPage() {
   const [openStatus, setOpenStatus] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
 
   const {
     data,
@@ -194,6 +253,16 @@ export function TicketDetailPage() {
     enabled: !!id,
   });
 
+  const {
+    data: messagesData,
+    isLoading: isLoadingMessages,
+    isError: isErrorMessages,
+  } = useQuery({
+    queryKey: ['ticket', id, 'messages'],
+    queryFn: () => fetchTicketMessages(id!),
+    enabled: !!id,
+  });
+
   // Active crew for the assignment slide-over — same source as the create form.
   const { data: usersData } = useQuery({
     queryKey: ['users'],
@@ -201,16 +270,10 @@ export function TicketDetailPage() {
   });
 
   const ticket = data?.ticket;
+  const messages = messagesData?.messages ?? [];
   const activeUsers = (usersData?.users ?? []).filter((u) => !u.deletedAt);
 
-  // Apply a status change. The new status is sent alone; the assignee is left
-  // untouched by omitting the key. The server returns the full ticket with
-  // relations resolved, so we patch the cache directly instead of waiting on a
-  // background refetch — the segmented control moves on the next frame, before
-  // the network round-trip resolves. We also patch the same ticket into every
-  // cached list page (`['tickets', queryParams]`) so the blotter reflects the
-  // new state without a refetch; any list row that isn't cached simply stays as
-  //-is until its page next loads.
+  // Apply a status change.
   const handleStatusChange = async (status: TicketStatus) => {
     if (!id || !ticket || ticket.status === status) return;
     setPending(true);
@@ -226,9 +289,7 @@ export function TicketDetailPage() {
     }
   };
 
-  // Apply an assignment. `null` unassigns; a string id reassigns. The slide-over
-  // closes on success so the new delegate card is visible immediately. As with
-  // status, we patch the cache from the mutation response rather than invalidating.
+  // Apply an assignment.
   const handleAssign = async (assignedToId: string | null) => {
     if (!id) return;
     setPending(true);
@@ -245,8 +306,36 @@ export function TicketDetailPage() {
     }
   };
 
-  // Close the slide-over on Escape — matches the ConfirmationDialog convention
-  // so keyboard users have a consistent way to back out of any overlay.
+  // Send a reply to the ticket
+  const handleReply = async () => {
+    if (!id || !replyContent.trim()) return;
+
+    setIsSendingReply(true);
+    setError(null);
+
+    try {
+      const { ticket: updated } = await replyToTicket(id, {
+        content: replyContent.trim(),
+        messageType: 'AGENT_REPLY',
+      });
+
+      // Invalidate messages query to fetch new message
+      queryClient.invalidateQueries({ queryKey: ['ticket', id, 'messages'] });
+
+      // Update ticket cache
+      queryClient.setQueryData(['ticket', id], { ticket: updated });
+      syncTicketIntoListCaches(queryClient, updated);
+
+      // Clear reply input
+      setReplyContent('');
+    } catch (err) {
+      setError(readServerError(err));
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
+
+  // Close the slide-over on Escape
   useEffect(() => {
     if (!assigning) return;
     const onKey = (e: KeyboardEvent) => {
@@ -256,7 +345,7 @@ export function TicketDetailPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [assigning]);
 
-  // Close the status popover on Escape, matching the slide-over convention.
+  // Close the status popover on Escape
   useEffect(() => {
     if (!openStatus) return;
     const onKey = (e: KeyboardEvent) => {
@@ -265,6 +354,16 @@ export function TicketDetailPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [openStatus]);
+
+  // Auto-scroll to bottom of messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      const container = document.querySelector('.messages-container');
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+  }, [messages]);
 
   return (
     <main className="flex-1 bg-[#F7F6F1] text-[#16150F]">
@@ -287,15 +386,10 @@ export function TicketDetailPage() {
             </div>
             <div className="flex gap-8">
               <div className="flex-1 space-y-3 rounded-xl border border-[#E4E1D7] bg-white p-6">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className="block h-3 rounded bg-[#E4E1D7]"
-                    style={{ width: `${70 + Math.random() * 30}%` }}
-                  />
-                ))}
+                <span className="block h-3 rounded bg-[#E4E1D7]" />
+                <span className="block h-3 rounded bg-[#E4E1D7]" style={{ width: '60%' }} />
               </div>
-              <div className="w-48 space-y-4">
+              <div className="w-52 space-y-4">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="space-y-1">
                     <span className="block h-2.5 w-16 rounded bg-[#E4E1D7]" />
@@ -334,7 +428,7 @@ export function TicketDetailPage() {
             <div className="flex gap-8">
               {/* Description card — the reading area */}
               <div className="flex-1 min-w-0">
-                <div className="rounded-xl border border-[#E4E1D7] bg-white p-6 shadow-sm">
+                <div className="rounded-xl border border-[#E4E1D7] bg-white p-6 shadow-sm mb-6">
                   <h2 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-[#C7C4BB]">
                     Description
                   </h2>
@@ -342,13 +436,59 @@ export function TicketDetailPage() {
                     {ticket.description}
                   </div>
                 </div>
+
+                {/* Message History */}
+                <div className="mb-6">
+                  <h2 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-[#C7C4BB]">
+                    Conversation
+                  </h2>
+                  <div className="messages-container h-64 overflow-y-auto rounded-xl border border-[#E4E1D7] bg-white p-4">
+                    {isLoadingMessages && (
+                      <div className="animate-pulse space-y-3">
+                        <div className="h-4 rounded bg-[#E4E1D7]" />
+                        <div className="h-4 rounded bg-[#E4E1D7]" style={{ width: '60%' }} />
+                      </div>
+                    )}
+                    {isErrorMessages && (
+                      <p className="text-sm text-[#6B6860]">Failed to load messages.</p>
+                    )}
+                    {messages.length === 0 && !isLoadingMessages && (
+                      <p className="text-sm text-[#C7C4BB]">No messages yet.</p>
+                    )}
+                    {messages.map((message: TicketMessage) => (
+                      <MessageBubble key={message.id} message={message} />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reply Form */}
+                <div className="rounded-xl border border-[#E4E1D7] bg-white p-4">
+                  <h2 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-[#C7C4BB]">
+                    Reply
+                  </h2>
+                  <textarea
+                    value={replyContent}
+                    onChange={(e) => setReplyContent(e.target.value)}
+                    placeholder="Type your reply..."
+                    className="w-full rounded-md border border-[#E4E1D7] bg-white px-3 py-2 text-sm text-[#16150F] focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]/30 focus:border-transparent resize-y"
+                    rows={4}
+                    disabled={isSendingReply}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleReply}
+                    disabled={isSendingReply || !replyContent.trim()}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-[#1E3A5F] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#2E3A6F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 disabled:opacity-50"
+                  >
+                    <Send className="size-3.5" />
+                    {isSendingReply ? 'Sending...' : 'Send Reply'}
+                  </button>
+                </div>
               </div>
 
               {/* Metadata rail — the filing details, now with dispatch controls */}
               <div className="w-52 shrink-0 space-y-5">
-                {/* Status — case flag. A color-tabbed marker (like the tab on a
-                    physical file folder) that shows the case state at a glance.
-                    Clicking it opens the dispatch menu to move the case. */}
+                {/* Status — case flag */}
                 <div>
                   <p className="mb-1.5 text-[11px] uppercase tracking-[0.08em] text-[#C7C4BB]">
                     Status
@@ -383,8 +523,7 @@ export function TicketDetailPage() {
                     </svg>
                   </button>
 
-                  {/* Dispatch menu — a vertical progression of states. The current
-                      state is checked; hovering previews the destination. */}
+                  {/* Dispatch menu */}
                   {openStatus && (
                     <div className="relative mt-1" role="listbox" aria-label="Change ticket status">
                       <div className="absolute left-0 right-0 z-30 overflow-hidden rounded-lg border border-[#E4E1D7] bg-white py-1 shadow-lg shadow-[#16150F]/5">
@@ -495,8 +634,7 @@ export function TicketDetailPage() {
                   </div>
                 </RailItem>
 
-                {/* Inline mutation error — shown in the rail so the user can retry
-                    without dismissing a toast. */}
+                {/* Inline mutation error */}
                 {error && (
                   <div
                     role="alert"
@@ -510,9 +648,7 @@ export function TicketDetailPage() {
           </div>
         )}
 
-        {/* Assignment slide-over — mirrors the roster edit panel. A crew identity
-            card per row; the current assignee carries an "On this case" marker
-            so the handoff is visible before it's made. */}
+        {/* Assignment slide-over */}
         {assigning && (
           <div className="fixed inset-0 z-40 flex justify-end">
             <div
@@ -537,15 +673,14 @@ export function TicketDetailPage() {
                   type="button"
                   onClick={() => setAssigning(false)}
                   title="Close"
-                  className="grid size-7 place-items-center rounded-md text-[#6B6860] transition-colors hover:bg-[#F7F6F1] hover:text-[#16150F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30"
+                  className="grid size-7 place-items-center rounded-md text-[#6B6860] transition-colors hover:bg-[#F7F6F1] hover:text-[#1E3A5F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30"
                 >
                   <X className="size-4" />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto">
-                {/* Unassign option — sits at the top so pulling a ticket back to
-                    the bench is a single tap. */}
+                {/* Unassign option */}
                 <button
                   type="button"
                   onClick={() => handleAssign(null)}
@@ -607,14 +742,10 @@ export function TicketDetailPage() {
   );
 }
 
-// ─── Shared error reader ────────────────────────────────────────────────────
+// ─── Shared helpers ──────────────────────────────────────────────────────────
 
 /**
- * Patch an updated ticket into every cached list page. The blotter is keyed on
- * `['tickets', queryParams]` and holds `{ tickets, meta }`; any page that already
- * contains this ticket gets its row replaced so the new status/assignee shows up
- * the instant you navigate back, without waiting on a refetch. Pages that don't
- * contain the ticket are left untouched — they'll be correct when they next load.
+ * Patch an updated ticket into every cached list page.
  */
 function syncTicketIntoListCaches(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -634,9 +765,7 @@ function syncTicketIntoListCaches(
 }
 
 /**
- * Read a server's message from a caught error. The server sends the human-readable
- * string at `response.data.error`; fall back to the error's own message, which is
- * the generic Axios "Request failed with status code NNN" line and never the intent.
+ * Read a server's message from a caught error.
  */
 function readServerError(err: unknown): string {
   if (

@@ -27,6 +27,12 @@ enum TicketStatus {
   CLOSED
 }
 
+enum TicketMessageType {
+  INBOUND_EMAIL
+  AGENT_REPLY
+  AUTOMATED_REPLY
+}
+
 // Example model
 
 model User {
@@ -111,10 +117,25 @@ model Ticket {
   senderName    String?        // Original sender name (for inbound emails from non-users)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  messages      TicketMessage[]
 
   @@index([createdById])
   @@index([assignedToId])
   @@index([status])
   @@index([senderEmail])
   @@map("ticket")
+}
+
+model TicketMessage {
+  id           String          @id @default(cuid())
+  content      String
+  messageType  TicketMessageType
+  createdAt    DateTime        @default(now())
+  senderEmail  String?
+  senderName   String?
+  ticketId     String
+  ticket       Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("ticket_message")
 }

@@ -51,6 +51,7 @@ export interface TicketWithUsers {
   updatedAt: string;
   createdBy: TicketUser;
   assignedTo: TicketUser | null;
+  messages?: TicketMessage[];
 }
 
 /**
@@ -90,6 +91,7 @@ export interface TicketListParams {
   category?: string;     // comma-separated, e.g. "BUG,SUPPORT"
   assignee?: string;     // single id or "__unassigned__"
   search?: string;
+  status?: string;       // comma-separated, e.g. "OPEN,IN_PROGRESS"
 }
 
 /** Response from the server-driven ticket list endpoint. */
@@ -123,6 +125,37 @@ export interface CreateTicketInput {
 export interface UpdateTicketInput {
   assignedToId?: string | null;
   status?: TicketStatus;
+}
+
+/** Ticket message types. Kept in sync with the server-side TICKET_MESSAGE_TYPES. */
+export type TicketMessageType = "INBOUND_EMAIL" | "AGENT_REPLY" | "AUTOMATED_REPLY";
+
+/** Payload for replying to a ticket. */
+export interface TicketReplyInput {
+  content: string;
+  messageType: TicketMessageType;
+  senderEmail?: string;
+  senderName?: string;
+}
+
+/** Ticket message row. */
+export interface TicketMessage {
+  id: string;
+  content: string;
+  messageType: TicketMessageType;
+  createdAt: string;
+  senderEmail: string | null;
+  senderName: string | null;
+}
+
+/** Response for ticket reply endpoint. */
+export interface TicketReplyResponse {
+  ticket: TicketWithUsers;
+}
+
+/** Response for ticket messages endpoint. */
+export interface TicketMessagesResponse {
+  messages: TicketMessage[];
 }
 
 /**
@@ -173,6 +206,33 @@ export async function updateTicket(
   const { data } = await apiClient.patch<TicketDetailResponse>(
     `/api/tickets/${id}`,
     input,
+  );
+  return data;
+}
+
+/**
+ * Reply to a ticket by adding a message. On success the server returns the
+ * updated ticket with creator/assignee names resolved.
+ */
+export async function replyToTicket(
+  id: string,
+  input: TicketReplyInput,
+): Promise<TicketReplyResponse> {
+  const { data } = await apiClient.post<TicketReplyResponse>(
+    `/api/tickets/${id}/reply`,
+    input,
+  );
+  return data;
+}
+
+/**
+ * Fetch all messages for a ticket.
+ */
+export async function fetchTicketMessages(
+  id: string,
+): Promise<TicketMessagesResponse> {
+  const { data } = await apiClient.get<TicketMessagesResponse>(
+    `/api/tickets/${id}/messages`,
   );
   return data;
 }

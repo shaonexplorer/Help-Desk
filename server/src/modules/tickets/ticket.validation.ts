@@ -35,6 +35,12 @@ export const TICKET_STATUSES = [
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 /**
+ * Valid message types for ticket messages.
+ */
+export const TICKET_MESSAGE_TYPES = ['INBOUND_EMAIL', 'AGENT_REPLY', 'AUTOMATED_REPLY'] as const;
+export type TicketMessageType = (typeof TICKET_MESSAGE_TYPES)[number];
+
+/**
  * Validate the body of a create-ticket request. Subject and description are
  * required; priority defaults to MEDIUM; category must be in the allowlist;
  * assignedToId is optional (controller does the DB lookup).
@@ -326,5 +332,62 @@ export function validateUpdateTicketBody(body: unknown): ValidationResult<{
   return ok({
     ...(assignedToId !== undefined ? { assignedToId } : {}),
     ...(status !== undefined ? { status } : {}),
+  });
+}
+
+// ─── Reply validation ──────────────────────────────────────────────────
+
+export type CreateTicketMessageInput = {
+  content: string;
+  messageType: TicketMessageType;
+  senderEmail?: string;
+  senderName?: string;
+};
+
+/**
+ * Validate the body of a reply-to-ticket request. Content is required;
+ * messageType must be one of the allowed types; senderEmail/senderName are optional.
+ */
+export function validateCreateTicketMessageBody(body: unknown): ValidationResult<CreateTicketMessageInput> {
+  if (typeof body !== 'object' || body === null) {
+    return fail(['Request body must be an object']);
+  }
+
+  const record = body as Record<string, unknown>;
+  const errors: string[] = [];
+
+  // Content - required
+  if (!isNonEmptyString(record.content)) {
+    errors.push('"content" is required');
+  } else if (record.content.length > 10000) {
+    errors.push('"content" must be 10000 characters or fewer');
+  }
+
+  // MessageType - required, must be valid
+  if (!isNonEmptyString(record.messageType)) {
+    errors.push('"messageType" is required');
+  } else if (!TICKET_MESSAGE_TYPES.includes(record.messageType as TicketMessageType)) {
+    errors.push(`"messageType" must be one of ${TICKET_MESSAGE_TYPES.join(', ')}`);
+  }
+
+  // SenderEmail - optional
+  if (record.senderEmail !== undefined && !isNonEmptyString(record.senderEmail)) {
+    errors.push('"senderEmail" must be a non-empty string if provided');
+  }
+
+  // SenderName - optional
+  if (record.senderName !== undefined && !isNonEmptyString(record.senderName)) {
+    errors.push('"senderName" must be a non-empty string if provided');
+  }
+
+  if (errors.length > 0) {
+    return fail(errors);
+  }
+
+  return ok({
+    content: record.content as string,
+    messageType: record.messageType as TicketMessageType,
+    ...(record.senderEmail ? { senderEmail: record.senderEmail as string } : {}),
+    ...(record.senderName ? { senderName: record.senderName as string } : {}),
   });
 }
