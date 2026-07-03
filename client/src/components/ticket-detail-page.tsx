@@ -424,8 +424,8 @@ export function TicketDetailPage() {
               {ticket.subject}
             </h1>
 
-            {/* Two-column: description + metadata rail */}
-            <div className="flex gap-8">
+            {/* Two-column: description + metadata rail - responsive on mobile */}
+            <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
               {/* Description card — the reading area */}
               <div className="flex-1 min-w-0">
                 <div className="rounded-xl border border-[#E4E1D7] bg-white p-6 shadow-sm mb-6">
@@ -442,7 +442,7 @@ export function TicketDetailPage() {
                   <h2 className="mb-3 text-xs font-medium uppercase tracking-[0.1em] text-[#C7C4BB]">
                     Conversation
                   </h2>
-                  <div className="messages-container h-64 overflow-y-auto rounded-xl border border-[#E4E1D7] bg-white p-4">
+                  <div className="messages-container h-64 lg:h-80 overflow-y-auto rounded-xl border border-[#E4E1D7] bg-white p-4">
                     {isLoadingMessages && (
                       <div className="animate-pulse space-y-3">
                         <div className="h-4 rounded bg-[#E4E1D7]" />
@@ -478,7 +478,7 @@ export function TicketDetailPage() {
                     type="button"
                     onClick={handleReply}
                     disabled={isSendingReply || !replyContent.trim()}
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-[#1E3A5F] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#2E3A6F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 disabled:opacity-50"
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-[#1E3A5F] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#2E3A6F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 disabled:opacity-50 w-full justify-center"
                   >
                     <Send className="size-3.5" />
                     {isSendingReply ? 'Sending...' : 'Send Reply'}
@@ -487,7 +487,7 @@ export function TicketDetailPage() {
               </div>
 
               {/* Metadata rail — the filing details, now with dispatch controls */}
-              <div className="w-52 shrink-0 space-y-5">
+              <div className="w-full lg:w-52 shrink-0 space-y-5">
                 {/* Status — case flag */}
                 <div>
                   <p className="mb-1.5 text-[11px] uppercase tracking-[0.08em] text-[#C7C4BB]">
