@@ -317,6 +317,7 @@ export function TicketDetailPage() {
       const { ticket: updated } = await replyToTicket(id, {
         content: replyContent.trim(),
         messageType: 'AGENT_REPLY',
+        senderName: 'Support Agent', // Replace with actual agent name if available
       });
 
       // Invalidate messages query to fetch new message
