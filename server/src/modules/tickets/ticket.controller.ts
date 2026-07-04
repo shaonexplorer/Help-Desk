@@ -1,9 +1,22 @@
 import type { Request, Response } from 'express';
 import { asyncHandler, HttpError } from '../../core';
+import { Resend } from 'resend';
 import { TicketModel } from './ticket.model';
 import { UserModel } from '../users/user.model';
 import { validateIdParam } from '../users/user.validation';
-import { validateCreateTicketBody, validateTicketListQuery, validateUpdateTicketBody, validateCreateTicketMessageBody } from './ticket.validation';
+import {
+  validateCreateTicketBody,
+  validateTicketListQuery,
+  validateUpdateTicketBody,
+  validateCreateTicketMessageBody,
+} from './ticket.validation';
+import { gmail } from '../../provider/google/gmail';
+
+/**
+ * Resend client for sending email notifications.
+ * Uses the API key from RESEND_API_KEY env var.
+ */
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /**
  * Ticket controller — owns the HTTP layer for ticket resources. It shapes the
@@ -109,6 +122,9 @@ export const TicketController = {
 
     const { content, messageType, senderEmail, senderName } = bodyResult.value;
 
+    const ticketExists = await TicketModel.findById(idResult.value);
+    if (!ticketExists) throw new HttpError(404, 'Ticket not found');
+
     const ticket = await TicketModel.addMessage(idResult.value, {
       content,
       messageType,
@@ -126,6 +142,59 @@ export const TicketController = {
       });
       if (updatedTicket) {
         resultTicket = updatedTicket;
+      }
+    }
+
+    // console.log(ticketExists.senderEmail, 'ticketExists.senderEmail');
+
+    // Send email notification to customer for agent replies
+    {
+      try {
+        const fromEmail = process.env.RESEND_FROM_EMAIL || 'support@example.com';
+
+        const messageParts = [
+          `From: Your Name <${fromEmail}>`,
+          `To: ${ticketExists.senderEmail}`,
+          'Content-Type: text/html; charset=utf-8',
+          'MIME-Version: 1.0',
+          `Subject: Re: ${resultTicket.subject}`,
+          '',
+          `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <p>Hi ${resultTicket.senderName || 'there'},</p>
+              <p>We've received an update on your ticket: <strong>${resultTicket.subject}</strong></p>
+              <div style="background: #f5f5f5; padding: 16px; border-radius: 4px; margin: 16px 0;">
+                <p style="margin: 0; white-space: pre-wrap;">${content}</p>
+              </div>
+              <p>You can view the full conversation by logging into your account.</p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+              <p style="color: #666; font-size: 12px;">
+                This is an automated message. Please do not reply directly to this email.
+              </p>
+            </div>
+          `, // <-- Your EJS compiled template HTML
+        ];
+        const message = messageParts.join('\n');
+
+        // 2. Base64 encode the email for Google's API
+        const encodedMessage = Buffer.from(message)
+          .toString('base64')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
+
+        // 3. Send it via HTTP POST request (Never blocked by Render!)
+        const info = await gmail.users.messages.send({
+          userId: 'me',
+          requestBody: {
+            raw: encodedMessage,
+          },
+        });
+
+        console.log('Message sent: %s', info);
+      } catch (emailErr) {
+        // Log error but don't fail the request - the ticket reply was successful
+        console.error('Failed to send email notification:', emailErr);
       }
     }
 

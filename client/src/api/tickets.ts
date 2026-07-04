@@ -1,28 +1,23 @@
-import { apiClient } from "@/lib/api-client";
+import { apiClient } from '@/lib/api-client';
 
 /** Ticket priority levels. Kept in sync with the Prisma TicketPriority enum. */
-export type TicketPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
 /** Ticket category values. Kept in sync with the server-side allowlist. */
-export type TicketCategory =
-  | "BUG"
-  | "FEATURE_REQUEST"
-  | "SUPPORT"
-  | "BILLING"
-  | "OTHER";
+export type TicketCategory = 'BUG' | 'FEATURE_REQUEST' | 'SUPPORT' | 'BILLING' | 'OTHER';
 
 /**
  * Ticket lifecycle states. Kept in sync with the Prisma TicketStatus enum and
  * the server-side TICKET_STATUSES allowlist. A ticket opens OPEN, moves to
  * IN_PROGRESS when picked up, RESOLVED when the fix is in, CLOSED when archived.
  */
-export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 
 /** Sortable fields for the ticket list. Sent to the server as the `sort` param. */
-export type TicketSortField = "createdAt" | "subject" | "priority";
+export type TicketSortField = 'createdAt' | 'subject' | 'priority';
 
 /** Sort direction. */
-export type SortOrder = "asc" | "desc";
+export type SortOrder = 'asc' | 'desc';
 
 /** Minimal user shape included in ticket list responses. */
 export interface TicketUser {
@@ -87,11 +82,11 @@ export interface TicketListParams {
   limit?: number;
   sort?: TicketSortField;
   order?: SortOrder;
-  priority?: string;     // comma-separated, e.g. "HIGH,URGENT"
-  category?: string;     // comma-separated, e.g. "BUG,SUPPORT"
-  assignee?: string;     // single id or "__unassigned__"
+  priority?: string; // comma-separated, e.g. "HIGH,URGENT"
+  category?: string; // comma-separated, e.g. "BUG,SUPPORT"
+  assignee?: string; // single id or "__unassigned__"
   search?: string;
-  status?: string;       // comma-separated, e.g. "OPEN,IN_PROGRESS"
+  status?: string; // comma-separated, e.g. "OPEN,IN_PROGRESS"
 }
 
 /** Response from the server-driven ticket list endpoint. */
@@ -128,7 +123,7 @@ export interface UpdateTicketInput {
 }
 
 /** Ticket message types. Kept in sync with the server-side TICKET_MESSAGE_TYPES. */
-export type TicketMessageType = "INBOUND_EMAIL" | "AGENT_REPLY" | "AUTOMATED_REPLY";
+export type TicketMessageType = 'INBOUND_EMAIL' | 'AGENT_REPLY' | 'AUTOMATED_REPLY';
 
 /** Payload for replying to a ticket. */
 export interface TicketReplyInput {
@@ -164,10 +159,8 @@ export interface TicketMessagesResponse {
  * sort by createdAt desc). Returns tickets with creator and assignee names
  * resolved plus pagination metadata.
  */
-export async function fetchTickets(
-  params?: TicketListParams,
-): Promise<TicketsListResponse> {
-  const { data } = await apiClient.get<TicketsListResponse>("/api/tickets", {
+export async function fetchTickets(params?: TicketListParams): Promise<TicketsListResponse> {
+  const { data } = await apiClient.get<TicketsListResponse>('/api/tickets', {
     params,
   });
   return data;
@@ -186,10 +179,8 @@ export async function fetchTicket(id: string): Promise<TicketDetailResponse> {
  * Create a new ticket. The server sets `createdById` from the authenticated
  * session — the client never sends it. Returns 201 on success.
  */
-export async function createTicket(
-  input: CreateTicketInput,
-): Promise<TicketResponse> {
-  const { data } = await apiClient.post<TicketResponse>("/api/tickets", input);
+export async function createTicket(input: CreateTicketInput): Promise<TicketResponse> {
+  const { data } = await apiClient.post<TicketResponse>('/api/tickets', input);
   return data;
 }
 
@@ -203,10 +194,7 @@ export async function updateTicket(
   id: string,
   input: UpdateTicketInput,
 ): Promise<TicketDetailResponse> {
-  const { data } = await apiClient.patch<TicketDetailResponse>(
-    `/api/tickets/${id}`,
-    input,
-  );
+  const { data } = await apiClient.patch<TicketDetailResponse>(`/api/tickets/${id}`, input);
   return data;
 }
 
@@ -218,21 +206,14 @@ export async function replyToTicket(
   id: string,
   input: TicketReplyInput,
 ): Promise<TicketReplyResponse> {
-  const { data } = await apiClient.post<TicketReplyResponse>(
-    `/api/tickets/${id}/reply`,
-    input,
-  );
+  const { data } = await apiClient.post<TicketReplyResponse>(`/api/tickets/${id}/reply`, input);
   return data;
 }
 
 /**
  * Fetch all messages for a ticket.
  */
-export async function fetchTicketMessages(
-  id: string,
-): Promise<TicketMessagesResponse> {
-  const { data } = await apiClient.get<TicketMessagesResponse>(
-    `/api/tickets/${id}/messages`,
-  );
+export async function fetchTicketMessages(id: string): Promise<TicketMessagesResponse> {
+  const { data } = await apiClient.get<TicketMessagesResponse>(`/api/tickets/${id}/messages`);
   return data;
 }
