@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
+import http from 'http';
 import errorHandler from './middleware/errorHandler';
 import { requireAuth } from './middleware/auth';
 import { auth } from './auth';
@@ -14,7 +15,6 @@ import { dashboardModule } from './modules/dashboard';
 import path from 'path';
 import { toNodeHandler } from 'better-auth/node';
 import { seedAdmin } from './scripts/seed-admin';
-
 const app = express();
 const PORT = process.env.PORT ?? 5000;
 
@@ -57,6 +57,47 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(process.cwd(), '..', '..', 'client', 'dist', 'index.html'));
 });
 
+// Socket.io setup for real-time ticket updates
+import { Server } from 'socket.io';
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: DEV_ORIGINS,
+    credentials: true,
+  },
+});
+
+// Connection handling
+io.on('connection', (socket: import('socket.io').Socket) => {
+  console.log('Socket connected:', socket.id);
+
+  socket.on('join:dashboard', () => {
+    socket.join('dashboard');
+    console.log(`Socket ${socket.id} joined dashboard room`);
+  });
+
+  socket.on('subscribe:tickets', () => {
+    socket.join('tickets');
+    console.log(`Socket ${socket.id} subscribed to tickets stream`);
+  });
+
+  socket.on('leave:dashboard', () => {
+    socket.leave('dashboard');
+  });
+
+  socket.on('unsubscribe:tickets', () => {
+    socket.leave('tickets');
+  });
+
+  socket.on('ping', () => {
+    socket.emit('pong');
+  });
+
+  socket.on('disconnect', (reason: string) => {
+    console.log('Socket disconnected:', socket.id, 'reason:', reason);
+  });
+});
+
 seedAdmin().finally(() => {
-  app.listen(PORT, () => console.log(`🚀 Server listening at http://localhost:${PORT}`));
+  httpServer.listen(PORT, () => console.log(`🚀 Server listening at http://localhost:${PORT}`));
 });
