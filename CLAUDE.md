@@ -80,6 +80,40 @@ Examples:
 **Documentation Update**
 This file (`CLAUDE.md`) now includes a “Recent Changes (Status Filtering)” section describing the backend and frontend enhancements.
 
+---
+
+## Recent Changes (Ticket Reply & Message History)
+
+**Database Schema**
+- Added `TicketMessage` model with `INBOUND_EMAIL`, `AGENT_REPLY`, `AUTOMATED_REPLY` message types.
+- Added `messages` relation to the `Ticket` model with cascade delete.
+- Migration: `add-ticket-messages`
+
+**Server‑Side API**
+- Added `POST /api/tickets/:id/reply` endpoint for adding messages to tickets.
+- Added `GET /api/tickets/:id/messages` endpoint for fetching message history.
+- Auto-updates ticket status to `IN_PROGRESS` when agent replies to `OPEN` tickets.
+- Validation: content required (max 10,000 chars), messageType enum, optional sender details.
+
+**Server‑Side Files Modified**
+- `prisma/schema.prisma` – added `TicketMessage` model and relation
+- `server/src/modules/tickets/ticket.validation.ts` – added `validateCreateTicketMessageBody`
+- `server/src/modules/tickets/ticket.model.ts` – added `addMessage`, `getMessages`, `findByIdWithMessages`
+- `server/src/modules/tickets/ticket.controller.ts` – added `reply` and `getMessages` handlers
+- `server/src/modules/tickets/ticket.route.ts` – added new routes
+
+**Client‑Side UI**
+- Added message history panel with color-coded message bubbles (📨 inbound, 🛡️ agent, 💬 automated).
+- Added reply form with character limit and loading state.
+- Auto-scroll to new messages on load.
+- Fully responsive: stacks vertically on mobile, sidebar on desktop.
+- Mobile improvements: `lg:flex-row`, `lg:w-52`, `lg:h-80` breakpoints.
+
+**Client‑Side Files Modified**
+- `client/src/api/tickets.ts` – added `replyToTicket`, `fetchTicketMessages`, and related types
+- `client/src/api/index.ts` – exported new functions and types
+- `client/src/components/ticket-detail-page.tsx` – added conversation thread and reply functionality
+
 <details>
 <summary>🔧 Development Scripts (unchanged)</summary>
 
