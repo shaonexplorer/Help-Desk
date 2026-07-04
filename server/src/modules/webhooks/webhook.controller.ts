@@ -2,7 +2,12 @@ import type { Request, Response } from 'express';
 import { asyncHandler, HttpError } from '../../core';
 import { Resend } from 'resend';
 import { validateWebhookPayload } from './webhook.validation';
-import { createTicketFromEmail } from './webhook.model';
+import {
+  createTicketFromEmail,
+  findOpenTicketBySenderEmail,
+  createTicketMessageFromEmail,
+} from './webhook.model';
+import { TicketMessageType } from '../tickets/ticket.validation';
 
 /**
  * Resend client for webhook verification.
@@ -18,7 +23,7 @@ export const WebhookController = {
   /**
    * POST /api/webhooks/resend
    * Handles Resend's email.received webhook events.
-   * Verifies the webhook signature, fetches the email, and creates a ticket.
+   * Verifies the webhook signature, fetches the email, and creates a ticket or ticket message.
    */
   resend: asyncHandler(async (req: Request, res: Response) => {
     // Get raw body for signature verification
@@ -39,7 +44,10 @@ export const WebhookController = {
     const svixSignature = req.headers['svix-signature'] as string | undefined;
 
     if (!svixId || !svixTimestamp || !svixSignature) {
-      throw new HttpError(400, 'Missing required webhook headers (svix-id, svix-timestamp, svix-signature)');
+      throw new HttpError(
+        400,
+        'Missing required webhook headers (svix-id, svix-timestamp, svix-signature)',
+      );
     }
 
     // Verify the webhook
@@ -73,11 +81,43 @@ export const WebhookController = {
     // Handle email.received event
     if (verifiedPayload.type === 'email.received') {
       try {
-        const ticket = await createTicketFromEmail(data.email_id);
-        console.log(`Created ticket ${ticket.id} from email ${data.email_id}`);
-        res.status(201).json({ ticket, message: 'Ticket created from inbound email' });
+        // First, fetch the email content to extract sender info
+        const { data: email, error: emailError } = await resend.emails.receiving.get(data.email_id);
+
+        if (emailError || !email) {
+          throw new Error(
+            `Failed to fetch email ${data.email_id}: ${emailError?.message ?? 'Unknown error'}`,
+          );
+        }
+
+        const senderEmail = extractEmailFromEmail(email.from);
+
+        // Check if there's an existing open ticket from this sender
+        const existingTicket = await findOpenTicketBySenderEmail(senderEmail);
+
+        if (existingTicket) {
+          // Create inbound email message on the existing ticket
+          const messageContent = email.text ?? email.html ?? '';
+          const ticketMessage = await createTicketMessageFromEmail(
+            existingTicket.id,
+            data.email_id,
+          );
+          console.log(
+            `Created message ${ticketMessage.id} on ticket ${existingTicket.id} from email ${data.email_id}`,
+          );
+          res.status(201).json({
+            ticket: existingTicket,
+            message: 'Reply added to existing ticket',
+            ticketMessage,
+          });
+        } else {
+          // No open ticket found, create new ticket
+          const ticket = await createTicketFromEmail(data.email_id);
+          console.log(`Created ticket ${ticket.id} from email ${data.email_id}`);
+          res.status(201).json({ ticket, message: 'Ticket created from inbound email' });
+        }
       } catch (err) {
-        console.error('Failed to create ticket from email:', err);
+        console.error('Failed to process email:', err);
         // Return 200 to acknowledge webhook receipt (Resend will retry on 5xx)
         // But we log the error for investigation
         res.status(200).json({ error: 'Ticket creation failed', message: String(err) });
@@ -89,3 +129,12 @@ export const WebhookController = {
     }
   }),
 };
+
+/**
+ * Extract email address from "from" field (e.g., "John Doe <john@example.com>" -> "john@example.com")
+ */
+function extractEmailFromEmail(from: string): string {
+  const match = from.match(/<([^>]+)>/);
+  if (match) return match[1];
+  return from; // fallback: assume it's just an email
+}

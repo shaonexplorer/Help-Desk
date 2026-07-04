@@ -158,6 +158,111 @@ async function findOrCreateSenderUser(
 }
 
 /**
+ * Find an existing open ticket by sender email address
+ * Returns the ticket if found and open, otherwise null
+ */
+export async function findOpenTicketBySenderEmail(senderEmail: string): Promise<TicketRow | null> {
+  if (!senderEmail) {
+    return null;
+  }
+
+  const ticket = await prisma.ticket.findFirst({
+    where: {
+      senderEmail: senderEmail,
+      status: { in: ['OPEN', 'IN_PROGRESS'] }, // Only consider open or in-progress tickets
+    },
+    select: {
+      id: true,
+      subject: true,
+      description: true,
+      priority: true,
+      category: true,
+      status: true,
+      createdById: true,
+      assignedToId: true,
+      senderEmail: true,
+      senderName: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  if (!ticket) {
+    return null;
+  }
+
+  return {
+    id: ticket.id,
+    subject: ticket.subject,
+    description: ticket.description,
+    priority: ticket.priority,
+    category: ticket.category,
+    status: ticket.status,
+    createdById: ticket.createdById,
+    assignedToId: ticket.assignedToId,
+    senderEmail: ticket.senderEmail,
+    senderName: ticket.senderName,
+    createdAt: ticket.createdAt,
+    updatedAt: ticket.updatedAt,
+  };
+}
+
+/**
+ * Create a ticket message from an inbound email on an existing ticket
+ * This is called when an existing open ticket is found for the sender
+ */
+export async function createTicketMessageFromEmail(
+  ticketId: string,
+  emailId: string,
+): Promise<{ id: string }> {
+  // Fetch the full email content from Resend
+  const { data: email, error } = await resend.emails.receiving.get(emailId);
+
+  if (error || !email) {
+    throw new Error(`Failed to fetch email ${emailId}: ${error?.message ?? 'Unknown error'}`);
+  }
+
+  const { from, text, html, subject } = email;
+
+  // Extract sender info
+  const senderEmail = extractEmailFromEmail(from);
+  const senderName = extractNameFromEmail(from);
+
+  // Use text content as message, fall back to HTML stripped
+  let messageContent = text ?? '';
+  if (!messageContent && html) {
+    // Simple HTML to text conversion for basic cases
+    messageContent = html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&/g, '&')
+      .replace(/</g, '<')
+      .replace(/>/g, '>')
+      .trim();
+  }
+
+  if (!messageContent) {
+    messageContent = '(No content)';
+  }
+
+  // Create the message on the existing ticket
+  const message = await prisma.ticketMessage.create({
+    data: {
+      content: messageContent,
+      messageType: 'INBOUND_EMAIL',
+      senderEmail: senderEmail ?? null,
+      senderName: senderName ?? null,
+      ticketId,
+    },
+    select: { id: true },
+  });
+
+  return { id: message.id };
+}
+
+/**
  * Create a ticket from an inbound email.
  * This is the main service function called by the controller.
  */
@@ -169,7 +274,7 @@ export async function createTicketFromEmail(emailId: string): Promise<TicketRow>
     throw new Error(`Failed to fetch email ${emailId}: ${error?.message ?? 'Unknown error'}`);
   }
 
-  const { from, subject, text, html } = email;
+  const { from, text, html, subject } = email;
 
   // Use text content as description, fall back to HTML stripped
   let description = text ?? '';
