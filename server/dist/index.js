@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
+import http from 'http';
 import errorHandler from './middleware/errorHandler';
 import { requireAuth } from './middleware/auth';
 import { auth } from './auth';
@@ -45,6 +46,52 @@ app.use(errorHandler);
 app.get('*', (_req, res) => {
     res.sendFile(path.join(process.cwd(), '..', '..', 'client', 'dist', 'index.html'));
 });
+// Socket.io setup for real-time ticket updates
+import { Server } from 'socket.io';
+// Export io instance for use in other modules (controllers, etc.)
+export let io;
+const httpServer = http.createServer(app);
+io = new Server(httpServer, {
+    cors: {
+        origin: (origin, callback) => {
+            // Allow requests from Vite dev server and production origins
+            if (!origin)
+                return callback(null, true);
+            const allowed = process.env.CORS_ORIGIN?.split(',') ?? DEV_ORIGINS;
+            if (allowed.includes(origin)) {
+                callback(null, true);
+            }
+            else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        },
+        credentials: true,
+    },
+});
+// Connection handling
+io.on('connection', (socket) => {
+    console.log('Socket connected:', socket.id);
+    socket.on('join:dashboard', () => {
+        socket.join('dashboard');
+        console.log(`Socket ${socket.id} joined dashboard room`);
+    });
+    socket.on('subscribe:tickets', () => {
+        socket.join('tickets');
+        console.log(`Socket ${socket.id} subscribed to tickets stream`);
+    });
+    socket.on('leave:dashboard', () => {
+        socket.leave('dashboard');
+    });
+    socket.on('unsubscribe:tickets', () => {
+        socket.leave('tickets');
+    });
+    socket.on('ping', () => {
+        socket.emit('pong');
+    });
+    socket.on('disconnect', (reason) => {
+        console.log('Socket disconnected:', socket.id, 'reason:', reason);
+    });
+});
 seedAdmin().finally(() => {
-    app.listen(PORT, () => console.log(`🚀 Server listening at http://localhost:${PORT}`));
+    httpServer.listen(PORT, () => console.log(`🚀 Server listening at http://localhost:${PORT}`));
 });

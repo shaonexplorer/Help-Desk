@@ -82,6 +82,7 @@ export type CreateTicketInput = {
 export type UpdateTicketInput = {
   assignedToId?: string | null;
   status?: TicketStatus;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 };
 
 export type TicketsListMeta = {
@@ -210,11 +211,11 @@ export const TicketModel = {
   },
 
   /**
-   * Update an existing ticket's assignee and/or status. Only the provided
-   * fields are applied — an omitted field is left untouched. Returns the
-   * updated ticket with creator and assignee names resolved, or null if the
-   * ticket doesn't exist. The controller is responsible for validating the
-   * assignee before calling this.
+   * Update an existing ticket's assignee, status, and/or priority. Only the
+   * provided fields are applied — an omitted field is left untouched. Returns
+   * the updated ticket with creator and assignee names resolved, or null if
+   * the ticket doesn't exist. The controller is responsible for validating
+   * the assignee before calling this.
    */
   async updateTicket(id: string, input: UpdateTicketInput): Promise<TicketWithUsers | null> {
     const existing = await prisma.ticket.findUnique({
@@ -226,6 +227,7 @@ export const TicketModel = {
     const data: Record<string, unknown> = {};
     if (input.assignedToId !== undefined) data.assignedToId = input.assignedToId;
     if (input.status !== undefined) data.status = input.status;
+    if (input.priority !== undefined) data.priority = input.priority;
 
     return prisma.ticket.update({
       where: { id },

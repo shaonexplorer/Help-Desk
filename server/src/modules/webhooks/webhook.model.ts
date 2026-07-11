@@ -12,7 +12,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 /**
  * Extract a name from an email "from" field (e.g., "John Doe <john@example.com>" -> "John Doe")
  */
-function extractNameFromEmail(from: string): string | null {
+export function extractNameFromEmail(from: string): string | null {
   const match = from.match(/^([^<]+)</);
   if (match) {
     const name = match[1].trim();
@@ -222,7 +222,8 @@ export async function createTicketMessageFromEmail(
     throw new Error(`Failed to fetch email ${emailId}: ${error?.message ?? 'Unknown error'}`);
   }
 
-  const { from, text, html, subject } = email;
+  const { from, text, html } = email;
+  // subject is available as `email.subject` if needed in the future
 
   // Extract sender info
   const senderEmail = extractEmailFromEmail(from);

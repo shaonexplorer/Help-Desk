@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   useReactTable,
@@ -39,6 +39,16 @@ import {
   X,
   Mail,
 } from 'lucide-react';
+import {
+  initSocket,
+  onTicketEventNoData,
+  subscribeToTickets,
+  unsubscribeFromTickets,
+  joinDashboardRoom,
+  onCustomerReply,
+  type CustomerReplyNotification,
+} from '@/lib/socket-client';
+import { useNotifications } from '@/components/notification-context';
 
 /**
  * Tickets blotter — the dispatcher's incident log (server-driven).
@@ -229,83 +239,6 @@ function toServerSort(columnId: string): TicketSortField {
 
 const columnHelper = createColumnHelper<TicketWithUsers>();
 
-const columns = [
-  columnHelper.accessor('id', {
-    id: 'blotter',
-    header: 'Blotter',
-    cell: (info) => (
-      <span className="font-mono text-xs font-semibold tracking-tight text-[#1E3A5F]">
-        {blotterId(info.getValue())}
-      </span>
-    ),
-    enableSorting: true,
-  }),
-  columnHelper.accessor('subject', {
-    header: ({ column }) => <SortableHeader column={column}>Subject</SortableHeader>,
-    cell: (info) => {
-      const ticket = info.row.original;
-      // Prioritize sender info (inbound emails) over internal creator
-      const senderDisplay = ticket.senderName
-        ? ticket.senderName
-        : ticket.senderEmail
-          ? ticket.senderEmail
-          : ticket.createdBy.name ?? ticket.createdBy.email;
-      const showEnvelope = !!(ticket.senderEmail || ticket.senderName);
-
-      return (
-        <Link to={`/tickets/${ticket.id}`} className="group block min-w-0 max-w-xs">
-          <p className="truncate text-sm font-medium tracking-tight text-[#16150F] underline-offset-2 group-hover:underline group-hover:text-[#1E3A5F] transition-colors">
-            {info.getValue()}
-          </p>
-          <p className="truncate text-xs text-[#6B6860] flex items-center gap-1">
-            {showEnvelope && <Mail className="size-3 shrink-0" />}
-            <span>from {senderDisplay}</span>
-          </p>
-        </Link>
-      );
-    },
-  }),
-  columnHelper.accessor('priority', {
-    header: ({ column }) => <SortableHeader column={column}>Priority</SortableHeader>,
-    cell: (info) => <PriorityBadge priority={info.getValue()} />,
-  }),
-  columnHelper.accessor('category', {
-    header: 'Category',
-    cell: (info) => <CategoryChip category={info.getValue()} />,
-    enableSorting: false,
-  }),
-  columnHelper.accessor('status', {
-    header: 'Status',
-    cell: (info) => <StatusPill status={info.getValue()} />,
-    enableSorting: false,
-  }),
-  columnHelper.accessor('assignedTo', {
-    id: 'assignee',
-    header: 'Assigned to',
-    cell: (info) => {
-      const assignee = info.getValue();
-      if (!assignee) {
-        return <span className="text-xs text-[#C7C4BB]">Unassigned</span>;
-      }
-      return <span className="text-sm text-[#16150F]">{assignee.name ?? assignee.email}</span>;
-    },
-    enableSorting: false,
-  }),
-  columnHelper.accessor('createdAt', {
-    id: 'log',
-    header: 'Log',
-    cell: (info) => (
-      <div className="flex flex-col items-end gap-0.5">
-        <span className="font-mono text-[11px] tracking-tight text-[#6B6860]">
-          {logTimestamp(info.getValue())}
-        </span>
-        <span className="text-[11px] text-[#C7C4BB]">{relativeTime(info.getValue())}</span>
-      </div>
-    ),
-    enableSorting: true,
-  }),
-];
-
 // ─── Page component ─────────────────────────────────────────────────────────
 
 const VALID_LIMITS = [10, 20, 50] as const;
@@ -321,6 +254,112 @@ export function TicketsListPage() {
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [searchInput, setSearchInput] = useState(''); // immediate input value
   const [searchQuery, setSearchQuery] = useState(''); // debounced value sent to server
+
+  // Query client for real-time updates
+  const queryClient = useQueryClient();
+
+  // Notification context for unread tickets
+  const { addNotification, markTicketAsRead, unreadTicketIds } = useNotifications();
+
+  // Define columns with access to notification context
+  const columns = useMemo(() => {
+    return [
+      columnHelper.accessor('id', {
+        id: 'blotter',
+        header: 'Blotter',
+        cell: (info) => (
+          <span className="font-mono text-xs font-semibold tracking-tight text-[#1E3A5F]">
+            {blotterId(info.getValue())}
+          </span>
+        ),
+        enableSorting: true,
+      }),
+      columnHelper.accessor('subject', {
+        header: ({ column }) => <SortableHeader column={column}>Subject</SortableHeader>,
+        cell: (info) => {
+          const ticket = info.row.original;
+          const isUnread = unreadTicketIds.has(ticket.id);
+
+          return (
+            <Link
+              to={`/tickets/${ticket.id}`}
+              onClick={() => {
+                if (isUnread) {
+                  markTicketAsRead(ticket.id);
+                }
+              }}
+              className="group block min-w-0 max-w-xs"
+            >
+              <p
+                className={`truncate text-sm font-medium tracking-tight underline-offset-2 transition-colors
+                  ${isUnread ? 'font-semibold text-[#1E3A5F]' : 'text-[#16150F] hover:underline hover:text-[#1E3A5F]'}`}
+              >
+                {ticket.subject}
+              </p>
+              <p className="truncate text-xs text-[#6B6860] flex items-center gap-1">
+                {!!(ticket.senderEmail || ticket.senderName) && (
+                  <Mail className="size-3 shrink-0" />
+                )}
+                <span>
+                  from{' '}
+                  {ticket.senderName
+                    ? ticket.senderName
+                    : ticket.senderEmail
+                      ? ticket.senderEmail
+                      : (ticket.createdBy.name ?? ticket.createdBy.email)}
+                </span>
+              </p>
+            </Link>
+          );
+        },
+      }),
+      columnHelper.accessor('priority', {
+        header: ({ column }) => <SortableHeader column={column}>Priority</SortableHeader>,
+        cell: (info) => <PriorityBadge priority={info.getValue()} />,
+      }),
+      columnHelper.accessor('category', {
+        header: 'Category',
+        cell: (info) => <CategoryChip category={info.getValue()} />,
+        enableSorting: false,
+      }),
+      columnHelper.accessor('status', {
+        header: 'Status',
+        cell: (info) => <StatusPill status={info.getValue()} />,
+        enableSorting: false,
+      }),
+      columnHelper.accessor('assignedTo', {
+        id: 'assignee',
+        header: 'Assigned to',
+        cell: (info) => {
+          const assignee = info.getValue();
+          if (!assignee) {
+            return <span className="text-xs text-[#C7C4BB]">Unassigned</span>;
+          }
+          return (
+            <span className="text-sm text-[#16150F]">
+              {assignee.name ?? assignee.email}
+            </span>
+          );
+        },
+        enableSorting: false,
+      }),
+      columnHelper.accessor('createdAt', {
+        id: 'log',
+        header: 'Log',
+        cell: (info) => (
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="font-mono text-[11px] tracking-tight text-[#6B6860]">
+              {logTimestamp(info.getValue())}
+            </span>
+            <span className="text-[11px] text-[#C7C4BB]">
+              {relativeTime(info.getValue())}
+            </span>
+          </div>
+        ),
+        enableSorting: true,
+      }),
+    ];
+  }, [markTicketAsRead, unreadTicketIds]);
 
   // Debounce search: 300ms after last keystroke.
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -351,6 +390,54 @@ export function TicketsListPage() {
     ...(assigneeFilter ? { assignee: assigneeFilter } : {}),
     ...(searchQuery ? { search: searchQuery } : {}),
   };
+
+  // ── Socket.io real-time subscriptions ─────────────────────────────────────
+
+  useEffect(() => {
+    // Initialize socket connection
+    initSocket();
+
+    // Join dashboard room for receiving analytics updates
+    joinDashboardRoom();
+
+    // Subscribe to ticket events
+    const unsubscribe = onTicketEventNoData('ticket:created', () => {
+      // Refetch all tickets queries to get latest data
+      queryClient.refetchQueries({ queryKey: ['tickets'], exact: false });
+    });
+
+    const unsubscribeUpdated = onTicketEventNoData('ticket:updated', () => {
+      // Refetch all tickets queries to get latest data
+      queryClient.refetchQueries({ queryKey: ['tickets'], exact: false });
+    });
+
+    // Subscribe to customer reply notifications
+    const unsubscribeCustomerReply = onCustomerReply((data: CustomerReplyNotification) => {
+      // Show notification for customer reply
+      addNotification({
+        type: 'info',
+        title: 'New customer reply',
+        description: `${data.ticketSubject} received a new reply`,
+        ticketId: data.ticketId,
+        ticketSubject: data.ticketSubject,
+        senderEmail: data.senderEmail,
+      });
+
+      // Also refetch to get updated ticket data
+      queryClient.refetchQueries({ queryKey: ['tickets'], exact: false });
+    });
+
+    // Subscribe to tickets stream for live updates
+    subscribeToTickets();
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribe();
+      unsubscribeUpdated();
+      unsubscribeCustomerReply();
+      unsubscribeFromTickets();
+    };
+  }, [queryClient, addNotification]);
 
   // ── Fetch from server ──────────────────────────────────────────────────────
   const { data, isLoading, isError, error } = useQuery({
@@ -679,9 +766,7 @@ export function TicketsListPage() {
                                       : cell.column.id === 'log'
                                         ? '90px'
                                         : undefined,
-                          ...(cell.column.id === 'log'
-                            ? { textAlign: 'right' as const }
-                            : {}),
+                          ...(cell.column.id === 'log' ? { textAlign: 'right' as const } : {}),
                         }}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

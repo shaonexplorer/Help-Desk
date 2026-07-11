@@ -11,7 +11,10 @@
     "prisma:migrate": "prisma migrate dev --name init"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^4.0.11",
+    "@openrouter/ai-sdk-provider": "^3.0.0",
     "@prisma/client": "^6.16.0",
+    "ai": "^7.0.22",
     "better-auth": "^1.6.20",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

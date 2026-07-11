@@ -59,10 +59,23 @@ app.get('*', (_req, res) => {
 
 // Socket.io setup for real-time ticket updates
 import { Server } from 'socket.io';
+
+// Export io instance for use in other modules (controllers, etc.)
+export let io: Server;
+
 const httpServer = http.createServer(app);
-const io = new Server(httpServer, {
+io = new Server(httpServer, {
   cors: {
-    origin: DEV_ORIGINS,
+    origin: (origin, callback) => {
+      // Allow requests from Vite dev server and production origins
+      if (!origin) return callback(null, true);
+      const allowed = process.env.CORS_ORIGIN?.split(',') ?? DEV_ORIGINS;
+      if (allowed.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   },
 });

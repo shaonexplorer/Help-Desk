@@ -7,6 +7,7 @@ import {
   updateTicket,
   replyToTicket,
   fetchTicketMessages,
+  polishReply,
   type TicketWithUsers,
   type TicketsListResponse,
   type TicketPriority,
@@ -19,15 +20,14 @@ import {
   User,
   Clock,
   Tag,
-  AlertTriangle,
   UserPlus,
   X,
   Check,
   Mail,
   Send,
   Shield,
+  Sparkles,
 } from 'lucide-react';
-
 /**
  * Ticket detail — the incident file pulled from a cabinet, now with a dispatch
  * rail and conversation thread.
@@ -232,15 +232,17 @@ export function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
 
-  // Dispatch state: the crew slide-over, the status popover, the in-flight flag,
+  // Dispatch state: the crew slide-over, the status/priority popovers, the in-flight flag,
   // and the inline error. Both mutations share one error slot — they never fire
   // at the same time, and a single line is all the rail can hold without crowding.
   const [assigning, setAssigning] = useState(false);
   const [openStatus, setOpenStatus] = useState(false);
+  const [openPriority, setOpenPriority] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
+  const [isPolishing, setIsPolishing] = useState(false);
 
   const {
     data,
@@ -306,6 +308,22 @@ export function TicketDetailPage() {
     }
   };
 
+  // Apply a priority change.
+  const handlePriorityChange = async (priority: TicketPriority) => {
+    if (!id || !ticket || ticket.priority === priority) return;
+    setPending(true);
+    setError(null);
+    try {
+      const { ticket: updated } = await updateTicket(id, { priority });
+      queryClient.setQueryData(['ticket', id], { ticket: updated });
+      syncTicketIntoListCaches(queryClient, updated);
+    } catch (err) {
+      setError(readServerError(err));
+    } finally {
+      setPending(false);
+    }
+  };
+
   // Send a reply to the ticket
   const handleReply = async () => {
     if (!id || !replyContent.trim()) return;
@@ -336,6 +354,26 @@ export function TicketDetailPage() {
     }
   };
 
+  // Polish the reply using AI
+  const handlePolish = async () => {
+    if (!id || !replyContent.trim()) return;
+
+    setIsPolishing(true);
+    setError(null);
+
+    try {
+      console.log('Polishing reply:', replyContent.trim());
+      const { polished } = await polishReply(id, replyContent.trim());
+      setReplyContent(polished);
+
+      console.log('Polished reply:', polished);
+    } catch (err) {
+      setError(readServerError(err));
+    } finally {
+      setIsPolishing(false);
+    }
+  };
+
   // Close the slide-over on Escape
   useEffect(() => {
     if (!assigning) return;
@@ -355,6 +393,16 @@ export function TicketDetailPage() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [openStatus]);
+
+  // Close the priority popover on Escape
+  useEffect(() => {
+    if (!openPriority) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenPriority(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openPriority]);
 
   // Auto-scroll to bottom of messages
   useEffect(() => {
@@ -472,18 +520,29 @@ export function TicketDetailPage() {
                     onChange={(e) => setReplyContent(e.target.value)}
                     placeholder="Type your reply..."
                     className="w-full rounded-md border border-[#E4E1D7] bg-white px-3 py-2 text-sm text-[#16150F] focus:outline-none focus:ring-2 focus:ring-[#1E3A5F]/30 focus:border-transparent resize-y"
-                    rows={4}
-                    disabled={isSendingReply}
+                    rows={10}
+                    disabled={isSendingReply || isPolishing}
                   />
-                  <button
-                    type="button"
-                    onClick={handleReply}
-                    disabled={isSendingReply || !replyContent.trim()}
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-[#1E3A5F] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#2E3A6F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 disabled:opacity-50 w-full justify-center"
-                  >
-                    <Send className="size-3.5" />
-                    {isSendingReply ? 'Sending...' : 'Send Reply'}
-                  </button>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handlePolish}
+                      disabled={isPolishing || isSendingReply || !replyContent.trim()}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-[#F7F6F1] px-3 py-1.5 text-xs font-medium text-[#6B6860] transition-colors hover:bg-[#E4E1D7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 disabled:opacity-50"
+                    >
+                      <Sparkles className="size-3.5" />
+                      {isPolishing ? 'Polishing...' : 'Polish'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleReply}
+                      disabled={isSendingReply || isPolishing || !replyContent.trim()}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-[#1E3A5F] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#2E3A6F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 disabled:opacity-50 w-full justify-center"
+                    >
+                      <Send className="size-3.5" />
+                      {isSendingReply ? 'Sending...' : 'Send Reply'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -561,14 +620,86 @@ export function TicketDetailPage() {
                   )}
                 </div>
 
-                {/* Priority */}
-                <RailItem icon={AlertTriangle} label="Priority">
-                  <span
-                    className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold tracking-tight ${PRIORITY_STYLES[ticket.priority].bg} ${PRIORITY_STYLES[ticket.priority].text} ${PRIORITY_STYLES[ticket.priority].border}`}
+                {/* Priority — dropdown with case flag colors */}
+                <div>
+                  <p className="mb-1.5 text-[11px] uppercase tracking-[0.08em] text-[#C7C4BB]">
+                    Priority
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setOpenPriority((v) => !v)}
+                    disabled={pending}
+                    aria-haspopup="listbox"
+                    aria-expanded={openPriority}
+                    className={`relative flex w-full items-center gap-2 rounded-lg border pl-2.5 pr-3 py-2 text-left transition-colors disabled:opacity-50 ${PRIORITY_STYLES[ticket.priority].border} ${PRIORITY_STYLES[ticket.priority].bg} hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30`}
                   >
-                    {PRIORITY_LABELS[ticket.priority]}
-                  </span>
-                </RailItem>
+                    {/* Priority indicator dot */}
+                    <span
+                      className={`h-5 w-px shrink-0 rounded-full ${PRIORITY_STYLES[ticket.priority].border}`}
+                    />
+                    <span className={`flex-1 text-sm font-medium ${PRIORITY_STYLES[ticket.priority].text}`}>
+                      {PRIORITY_LABELS[ticket.priority]}
+                    </span>
+                    <svg
+                      className={`size-3.5 shrink-0 text-[#C7C4BB] transition-transform ${openPriority ? 'rotate-180' : ''}`}
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+
+                  {/* Priority dropdown */}
+                  {openPriority && (
+                    <div className="relative mt-1" role="listbox" aria-label="Change ticket priority">
+                      <div className="absolute left-0 right-0 z-30 overflow-hidden rounded-lg border border-[#E4E1D7] bg-white py-1 shadow-lg shadow-[#16150F]/5">
+                        {Object.entries(PRIORITY_LABELS).map(([value, label]) => {
+                          const priority = value as TicketPriority;
+                          const isActive = ticket.priority === priority;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              role="option"
+                              aria-selected={isActive}
+                              onClick={() => {
+                                setOpenPriority(false);
+                                handlePriorityChange(priority);
+                              }}
+                              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[#F7F6F1] focus-visible:bg-[#F7F6F1] focus-visible:outline-none ${
+                                isActive ? 'bg-[#F7F6F1]' : ''
+                              }`}
+                            >
+                              {/* Priority indicator dot */}
+                              <div
+                                className={`size-2 rounded-full ${
+                                  priority === 'LOW'
+                                    ? 'bg-[#6B6860]'
+                                    : priority === 'MEDIUM'
+                                    ? 'bg-[#16150F]'
+                                    : priority === 'HIGH'
+                                    ? 'bg-[#8B5E1A]'
+                                    : 'bg-[#9B3627]'
+                                }`}
+                              />
+                              <span
+                                className={`flex-1 text-sm ${isActive ? 'font-medium text-[#16150F]' : 'text-[#6B6860]'}`}
+                              >
+                                {label}
+                              </span>
+                              {isActive && <Check className="size-3.5 text-[#1E3A5F]" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Category */}
                 <RailItem icon={Tag} label="Category">

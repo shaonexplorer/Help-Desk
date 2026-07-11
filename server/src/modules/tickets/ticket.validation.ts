@@ -6,13 +6,7 @@ import type { ValidationResult } from '../../core/validate';
  * so adding a new category is a code change (no migration). Can be moved to a
  * database table later if product wants an admin UI for category management.
  */
-export const TICKET_CATEGORIES = [
-  'BUG',
-  'FEATURE_REQUEST',
-  'SUPPORT',
-  'BILLING',
-  'OTHER',
-] as const;
+export const TICKET_CATEGORIES = ['BUG', 'FEATURE_REQUEST', 'SUPPORT', 'BILLING', 'OTHER'] as const;
 
 export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
 
@@ -26,12 +20,7 @@ export type Priority = (typeof PRIORITIES)[number];
  * fix is in, and CLOSED when the file is archived. Add a new state here and in
  * the Prisma enum together — never one without the other.
  */
-export const TICKET_STATUSES = [
-  'OPEN',
-  'IN_PROGRESS',
-  'RESOLVED',
-  'CLOSED',
-] as const;
+export const TICKET_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const;
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 /**
@@ -76,13 +65,8 @@ export function validateCreateTicketBody(body: unknown): ValidationResult<{
   // Priority — defaults to MEDIUM if omitted.
   let priority: Priority = 'MEDIUM';
   if (record.priority !== undefined) {
-    if (
-      typeof record.priority !== 'string' ||
-      !PRIORITIES.includes(record.priority as Priority)
-    ) {
-      errors.push(
-        `"priority" must be one of ${PRIORITIES.join(', ')}`,
-      );
+    if (typeof record.priority !== 'string' || !PRIORITIES.includes(record.priority as Priority)) {
+      errors.push(`"priority" must be one of ${PRIORITIES.join(', ')}`);
     } else {
       priority = record.priority as Priority;
     }
@@ -92,12 +76,8 @@ export function validateCreateTicketBody(body: unknown): ValidationResult<{
   let category: TicketCategory | undefined;
   if (!isNonEmptyString(record.category)) {
     errors.push('"category" is required');
-  } else if (
-    !TICKET_CATEGORIES.includes(record.category as TicketCategory)
-  ) {
-    errors.push(
-      `"category" must be one of ${TICKET_CATEGORIES.join(', ')}`,
-    );
+  } else if (!TICKET_CATEGORIES.includes(record.category as TicketCategory)) {
+    errors.push(`"category" must be one of ${TICKET_CATEGORIES.join(', ')}`);
   } else {
     category = record.category as TicketCategory;
   }
@@ -179,10 +159,7 @@ export function validateTicketListQuery(
   // Sort — default createdAt
   let sort: SortField = 'createdAt';
   if (query.sort !== undefined) {
-    if (
-      typeof query.sort !== 'string' ||
-      !VALID_SORT_FIELDS.includes(query.sort as SortField)
-    ) {
+    if (typeof query.sort !== 'string' || !VALID_SORT_FIELDS.includes(query.sort as SortField)) {
       errors.push(`"sort" must be one of ${VALID_SORT_FIELDS.join(', ')}`);
     } else {
       sort = query.sort as SortField;
@@ -201,7 +178,11 @@ export function validateTicketListQuery(
 
   // Priority — comma-separated, each must be a valid priority
   let priority: Priority[] | undefined;
-  if (query.priority !== undefined && typeof query.priority === 'string' && query.priority.length > 0) {
+  if (
+    query.priority !== undefined &&
+    typeof query.priority === 'string' &&
+    query.priority.length > 0
+  ) {
     const parts = query.priority.split(',').map((s) => s.trim().toUpperCase());
     const invalid = parts.filter((p) => !PRIORITIES.includes(p as Priority));
     if (invalid.length > 0) {
@@ -213,7 +194,11 @@ export function validateTicketListQuery(
 
   // Category — comma-separated, each must be a valid category
   let category: TicketCategory[] | undefined;
-  if (query.category !== undefined && typeof query.category === 'string' && query.category.length > 0) {
+  if (
+    query.category !== undefined &&
+    typeof query.category === 'string' &&
+    query.category.length > 0
+  ) {
     const parts = query.category.split(',').map((s) => s.trim().toUpperCase());
     const invalid = parts.filter((c) => !TICKET_CATEGORIES.includes(c as TicketCategory));
     if (invalid.length > 0) {
@@ -237,7 +222,11 @@ export function validateTicketListQuery(
 
   // Assignee — optional, single id or "__unassigned__"
   let assignee: string | undefined;
-  if (query.assignee !== undefined && typeof query.assignee === 'string' && query.assignee.length > 0) {
+  if (
+    query.assignee !== undefined &&
+    typeof query.assignee === 'string' &&
+    query.assignee.length > 0
+  ) {
     assignee = query.assignee;
   }
 
@@ -272,15 +261,17 @@ export function validateTicketListQuery(
 // ─── Update body validation ────────────────────────────────────────────────
 
 /**
- * Validate the body of an update-ticket request. Both fields are optional, but
+ * Validate the body of an update-ticket request. All fields are optional, but
  * at least one must be provided. `assignedToId` may be a non-empty string (a
  * user id), or explicitly `null` to pull the ticket back to the bench. When a
  * string is provided, the controller does the DB lookup to confirm the user is
  * live and active. `status` must be one of the allowed ticket states.
+ * `priority` must be one of the allowed priority levels.
  */
 export function validateUpdateTicketBody(body: unknown): ValidationResult<{
   assignedToId?: string | null;
   status?: TicketStatus;
+  priority?: Priority;
 }> {
   if (typeof body !== 'object' || body === null) {
     return fail(['Request body must be an object']);
@@ -312,17 +303,29 @@ export function validateUpdateTicketBody(body: unknown): ValidationResult<{
       typeof record.status !== 'string' ||
       !TICKET_STATUSES.includes(record.status as TicketStatus)
     ) {
-      errors.push(
-        `"status" must be one of ${TICKET_STATUSES.join(', ')}`,
-      );
+      errors.push(`"status" must be one of ${TICKET_STATUSES.join(', ')}`);
     } else {
       status = record.status as TicketStatus;
       hasField = true;
     }
   }
 
+  // Priority — optional, must be one of the allowlisted priorities.
+  let priority: Priority | undefined;
+  if (record.priority !== undefined) {
+    if (
+      typeof record.priority !== 'string' ||
+      !PRIORITIES.includes(record.priority as Priority)
+    ) {
+      errors.push(`"priority" must be one of ${PRIORITIES.join(', ')}`);
+    } else {
+      priority = record.priority as Priority;
+      hasField = true;
+    }
+  }
+
   if (!hasField) {
-    errors.push('At least one of assignedToId or status must be provided');
+    errors.push('At least one of assignedToId, status, or priority must be provided');
   }
 
   if (errors.length > 0) {
@@ -332,6 +335,7 @@ export function validateUpdateTicketBody(body: unknown): ValidationResult<{
   return ok({
     ...(assignedToId !== undefined ? { assignedToId } : {}),
     ...(status !== undefined ? { status } : {}),
+    ...(priority !== undefined ? { priority } : {}),
   });
 }
 
@@ -348,7 +352,9 @@ export type CreateTicketMessageInput = {
  * Validate the body of a reply-to-ticket request. Content is required;
  * messageType must be one of the allowed types; senderEmail/senderName are optional.
  */
-export function validateCreateTicketMessageBody(body: unknown): ValidationResult<CreateTicketMessageInput> {
+export function validateCreateTicketMessageBody(
+  body: unknown,
+): ValidationResult<CreateTicketMessageInput> {
   if (typeof body !== 'object' || body === null) {
     return fail(['Request body must be an object']);
   }
@@ -389,5 +395,34 @@ export function validateCreateTicketMessageBody(body: unknown): ValidationResult
     messageType: record.messageType as TicketMessageType,
     ...(record.senderEmail ? { senderEmail: record.senderEmail as string } : {}),
     ...(record.senderName ? { senderName: record.senderName as string } : {}),
+  });
+}
+
+// ─── Polish validation ──────────────────────────────────────────────────────────
+
+/**
+ * Validate the body of a polish-reply request. Content is required.
+ */
+export function validatePolishReplyBody(body: unknown): ValidationResult<{ content: string }> {
+  if (typeof body !== 'object' || body === null) {
+    return fail(['Request body must be an object']);
+  }
+
+  const record = body as Record<string, unknown>;
+  const errors: string[] = [];
+
+  // Content - required
+  if (!isNonEmptyString(record.content)) {
+    errors.push('"content" is required');
+  } else if (record.content.length > 10000) {
+    errors.push('"content" must be 10000 characters or fewer');
+  }
+
+  if (errors.length > 0) {
+    return fail(errors);
+  }
+
+  return ok({
+    content: record.content as string,
   });
 }

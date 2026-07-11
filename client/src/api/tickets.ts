@@ -113,13 +113,14 @@ export interface CreateTicketInput {
 }
 
 /**
- * Payload for updating an existing ticket. Both fields are optional — only the
+ * Payload for updating an existing ticket. All fields are optional — only the
  * provided ones are sent. `assignedToId: null` unassigns the ticket; omit the
- * key to leave the assignee untouched.
+ * key to leave it untouched. `priority` can also be updated.
  */
 export interface UpdateTicketInput {
   assignedToId?: string | null;
   status?: TicketStatus;
+  priority?: TicketPriority;
 }
 
 /** Ticket message types. Kept in sync with the server-side TICKET_MESSAGE_TYPES. */
@@ -151,6 +152,11 @@ export interface TicketReplyResponse {
 /** Response for ticket messages endpoint. */
 export interface TicketMessagesResponse {
   messages: TicketMessage[];
+}
+
+/** Response for ticket polish endpoint. */
+export interface TicketPolishResponse {
+  polished: string;
 }
 
 /**
@@ -215,5 +221,13 @@ export async function replyToTicket(
  */
 export async function fetchTicketMessages(id: string): Promise<TicketMessagesResponse> {
   const { data } = await apiClient.get<TicketMessagesResponse>(`/api/tickets/${id}/messages`);
+  return data;
+}
+
+/**
+ * Polish a reply using AI. Returns the polished text.
+ */
+export async function polishReply(id: string, content: string): Promise<TicketPolishResponse> {
+  const { data } = await apiClient.post<TicketPolishResponse>(`/api/tickets/${id}/polish`, { content });
   return data;
 }

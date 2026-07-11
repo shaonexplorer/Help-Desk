@@ -9,4 +9,5 @@ export function mountTickets(router: Router): void {
   router.post('/tickets', TicketController.create);
   router.patch('/tickets/:id', TicketController.update);
   router.post('/tickets/:id/reply', TicketController.reply);
+  router.post('/tickets/:id/polish', TicketController.polish);
 }

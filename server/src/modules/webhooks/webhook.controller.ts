@@ -6,8 +6,10 @@ import {
   createTicketFromEmail,
   findOpenTicketBySenderEmail,
   createTicketMessageFromEmail,
+  extractNameFromEmail,
 } from './webhook.model';
-import { TicketMessageType } from '../tickets/ticket.validation';
+import { io } from '../..';
+// TicketMessageType is imported for future use in email webhook processing
 
 /**
  * Resend client for webhook verification.
@@ -96,24 +98,54 @@ export const WebhookController = {
         const existingTicket = await findOpenTicketBySenderEmail(senderEmail);
 
         if (existingTicket) {
-          // Create inbound email message on the existing ticket
-          const messageContent = email.text ?? email.html ?? '';
-          const ticketMessage = await createTicketMessageFromEmail(
-            existingTicket.id,
-            data.email_id,
-          );
-          console.log(
-            `Created message ${ticketMessage.id} on ticket ${existingTicket.id} from email ${data.email_id}`,
-          );
-          res.status(201).json({
-            ticket: existingTicket,
-            message: 'Reply added to existing ticket',
-            ticketMessage,
-          });
+          // Check if the ticket is open or in_progress (we only notify for these states)
+          if (existingTicket.status === 'OPEN' || existingTicket.status === 'IN_PROGRESS') {
+            // Create inbound email message on the existing ticket
+            const ticketMessage = await createTicketMessageFromEmail(
+              existingTicket.id,
+              data.email_id,
+            );
+            console.log(
+              `Created message ${ticketMessage.id} on ticket ${existingTicket.id} from email ${data.email_id}`,
+            );
+
+            // Extract sender info from email
+            const senderEmail = extractEmailFromEmail(email.from);
+            const senderName = extractNameFromEmail(email.from);
+
+            // Emit real-time notification for customer reply
+            io.to('tickets').emit('ticket:customer-replied', {
+              ticketId: existingTicket.id,
+              ticketSubject: existingTicket.subject,
+              senderEmail,
+              senderName,
+            });
+
+            res.status(201).json({
+              ticket: existingTicket,
+              message: 'Reply added to existing ticket',
+              ticketMessage,
+            });
+          } else {
+            // Ticket is resolved/closed - just create the message without notification
+            const ticketMessage = await createTicketMessageFromEmail(
+              existingTicket.id,
+              data.email_id,
+            );
+            console.log(
+              `Created message ${ticketMessage.id} on ticket ${existingTicket.id} from email ${data.email_id} (ticket not open/in_progress)`,
+            );
+            res.status(201).json({
+              ticket: existingTicket,
+              message: 'Reply added to existing ticket (not notified - ticket not active)',
+              ticketMessage,
+            });
+          }
         } else {
           // No open ticket found, create new ticket
           const ticket = await createTicketFromEmail(data.email_id);
           console.log(`Created ticket ${ticket.id} from email ${data.email_id}`);
+          io.to('tickets').emit('ticket:created', ticket);
           res.status(201).json({ ticket, message: 'Ticket created from inbound email' });
         }
       } catch (err) {
