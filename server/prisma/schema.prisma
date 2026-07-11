@@ -1,0 +1,141 @@
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  AGENT
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketMessageType {
+  INBOUND_EMAIL
+  AGENT_REPLY
+  AUTOMATED_REPLY
+}
+
+// Example model
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  role          Role      @default(AGENT)
+  createdAt     DateTime  @default(now())
+  emailVerified Boolean   @default(false)
+  image         String?
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  sessions         Session[]
+  accounts         Account[]
+  tickets          Ticket[] @relation("UserTickets")
+  assignedTickets  Ticket[] @relation("UserAssignedTickets")
+
+  @@index([deletedAt])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model Ticket {
+  id            String         @id @default(cuid())
+  subject       String
+  description   String
+  priority      TicketPriority @default(MEDIUM)
+  category      String
+  status        TicketStatus   @default(OPEN)
+  createdById   String
+  createdBy     User           @relation("UserTickets", fields: [createdById], references: [id])
+  assignedToId  String?
+  assignedTo    User?          @relation("UserAssignedTickets", fields: [assignedToId], references: [id])
+  senderEmail   String?        // Original sender email (for inbound emails from non-users)
+  senderName    String?        // Original sender name (for inbound emails from non-users)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  messages      TicketMessage[]
+
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([senderEmail])
+  @@map("ticket")
+}
+
+model TicketMessage {
+  id           String          @id @default(cuid())
+  content      String
+  messageType  TicketMessageType
+  createdAt    DateTime        @default(now())
+  senderEmail  String?
+  senderName   String?
+  ticketId     String
+  ticket       Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("ticket_message")
+}
