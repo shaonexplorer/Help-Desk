@@ -3,7 +3,7 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "module": "nodenext",
+    "module": "esnext",
     "target": "es2023",
     "strict": true,
     "esModuleInterop": true
