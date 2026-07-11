@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
     "seed": "tsx src/scripts/seed-admin.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init"
