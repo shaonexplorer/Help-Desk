@@ -8,8 +8,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm:dev --workspace=server\" \"npm:dev --workspace=client\"",
-    "build": "npm run build --workspace=server && npm run build:client",
-    "build:client": "vite build",
+    "build": "npm run build --workspace=server && npm run build --workspace=client",
     "start": "npm run start --workspace=server"
   },
   "prisma": {
