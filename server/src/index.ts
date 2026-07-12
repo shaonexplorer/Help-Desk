@@ -54,7 +54,7 @@ app.use('/api', requireAuth, compose([usersModule, ticketsModule, dashboardModul
 app.use(errorHandler);
 
 // Fallback for client‑side routing (serve index.html)
-app.get('*', (req, res) => {
+app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
 });
 
