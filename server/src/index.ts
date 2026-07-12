@@ -41,8 +41,7 @@ app.all('/api/auth/*', toNodeHandler(auth));
 
 // Serve static files from the built React app (when built)
 // In monorepo with npm workspaces, client dist is at ./client/dist from project root
-const clientDistPath = path.join(process.cwd(), 'client', 'dist');
-app.use(express.static(clientDistPath));
+app.use(express.static(path.join(__dirname, 'client', 'dist')));
 
 // API routes — every feature module composes here, then the whole tree is gated
 // behind Better Auth. /api/auth/* above stays public so sign-in/sign-up/sign-out
@@ -55,8 +54,8 @@ app.use('/api', requireAuth, compose([usersModule, ticketsModule, dashboardModul
 app.use(errorHandler);
 
 // Fallback for client‑side routing (serve index.html)
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(process.cwd(), 'client', 'dist', 'index.html'));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
 });
 
 // Socket.io setup for real-time ticket updates
