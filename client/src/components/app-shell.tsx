@@ -59,19 +59,25 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground">
             <Ticket className="size-3.5" />
           </span>
-          <h1 className="text-lg font-medium tracking-tight">Help Desk</h1>
-          <nav className="ml-4 hidden items-center gap-1 sm:flex">
+          <div className="flex items-baseline gap-1.5">
+            <h1 className="text-lg font-medium tracking-tight text-[#16150F]">Help Desk</h1>
+            <span className="font-mono text-xs tracking-tight text-[#6B6860]">
+              abir@zeneheliac.resend.app
+            </span>
+          </div>
+          <nav className="ml-4 hidden items-center gap-0.5 sm:flex">
             <NavLink
               to="/"
               end
               className={({ isActive }) =>
-                `rounded-md px-2.5 py-1 text-sm transition-colors ${
+                `flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors ${
                   isActive
-                    ? 'bg-accent font-medium text-[#1E3A5F]'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-[#2F7D4F]/10 font-medium text-[#2F7D4F]'
+                    : 'text-[#6B6860] hover:text-[#16150F]'
                 }`
               }
             >
+              <span className="size-1.5 shrink-0 rounded-full bg-[#6B6860]" />
               Dashboard
             </NavLink>
             <NavLink
@@ -80,8 +86,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               className={({ isActive }) =>
                 `flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors ${
                   isActive
-                    ? 'bg-accent font-medium text-[#1E3A5F]'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-[#2F7D4F]/10 font-medium text-[#2F7D4F]'
+                    : 'text-[#6B6860] hover:text-[#16150F]'
                 }`
               }
             >
@@ -94,8 +100,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               className={({ isActive }) =>
                 `flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors ${
                   isActive
-                    ? 'bg-accent font-medium text-[#1E3A5F]'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-[#2F7D4F]/10 font-medium text-[#2F7D4F]'
+                    : 'text-[#6B6860] hover:text-[#16150F]'
                 }`
               }
             >
@@ -155,12 +161,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 onClick={() => setMenuOpen(false)}
                 className={({ isActive }) =>
                   `flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-[#F7F6F1] focus-visible:bg-[#F7F6F1] focus-visible:outline-none ${
-                    isActive
-                      ? 'bg-accent font-medium text-[#1E3A5F]'
-                      : 'text-[#6B6860]'
+                    isActive ? 'bg-[#2F7D4F]/10 font-medium text-[#2F7D4F]' : 'text-[#6B6860]'
                   }`
                 }
               >
+                <span className="size-1.5 shrink-0 rounded-full bg-[#6B6860]" />
                 Dashboard
               </NavLink>
               <NavLink
@@ -170,9 +175,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 onClick={() => setMenuOpen(false)}
                 className={({ isActive }) =>
                   `flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-[#F7F6F1] focus-visible:bg-[#F7F6F1] focus-visible:outline-none ${
-                    isActive
-                      ? 'bg-accent font-medium text-[#1E3A5F]'
-                      : 'text-[#6B6860]'
+                    isActive ? 'bg-[#2F7D4F]/10 font-medium text-[#2F7D4F]' : 'text-[#6B6860]'
                   }`
                 }
               >
@@ -186,9 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 onClick={() => setMenuOpen(false)}
                 className={({ isActive }) =>
                   `flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-[#F7F6F1] focus-visible:bg-[#F7F6F1] focus-visible:outline-none ${
-                    isActive
-                      ? 'bg-accent font-medium text-[#1E3A5F]'
-                      : 'text-[#6B6860]'
+                    isActive ? 'bg-[#2F7D4F]/10 font-medium text-[#2F7D4F]' : 'text-[#6B6860]'
                   }`
                 }
               >
@@ -202,7 +203,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 type="button"
                 role="menuitem"
                 onClick={handleSignOut}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#6B6860] transition-colors hover:bg-[#F7F6F1] focus-visible:bg-[#F7F6F1] focus-visible:outline-none"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[#6B6860] transition-colors hover:bg-[#F7F6F1] focus-visible:bg-[#F7F6F1] focus-visible:outline-none hover:text-[#1E3A5F]"
               >
                 <LogOut className="size-3.5" />
                 Sign out

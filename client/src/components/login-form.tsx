@@ -9,10 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const loginSchema = z.object({
-  email: z
-    .string()
-    .email('Enter a valid email address')
-    .min(1, 'Email is required'),
+  email: z.string().email('Enter a valid email address').min(1, 'Email is required'),
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
@@ -36,7 +33,7 @@ export function LoginForm() {
     formState: { errors },
   } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { email: 'admin@gmail.com', password: 'password123' },
   });
 
   const onSubmit = async (values: LoginValues) => {
@@ -56,9 +53,9 @@ export function LoginForm() {
             // ctx.error.error (the parsed JSON body { error: "..." }).
             const body = ctx.error.error as { error?: string } | undefined;
             const message =
-              (typeof body?.error === "string" && body.error) ||
-              (typeof ctx.error?.message === "string" && ctx.error.message) ||
-              "Something went wrong.";
+              (typeof body?.error === 'string' && body.error) ||
+              (typeof ctx.error?.message === 'string' && ctx.error.message) ||
+              'Something went wrong.';
             setServerError(message);
           },
         },
