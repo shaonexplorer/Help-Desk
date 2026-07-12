@@ -263,18 +263,22 @@ Added the ability to update a ticket's priority directly from the ticket detail 
 **Client‑Side Files Modified**
 - `client/src/components/ticket-detail-page.tsx` – replaced static priority display with interactive dropdown
 
-**UI Implementation**
-- Priority button shows current priority with colored indicator dot
-- Clicking opens dropdown with all four priority options
-- Each option shows a colored dot matching the priority style
-- Selected priority is highlighted with a checkmark
-- Dropdown closes on Escape key press or clicking outside
-- Real-time updates sync with TanStack Query cache
+## Recent Changes (User Role in Session)
+
+**Feature Overview**
+Fixed the issue where `user.role` was undefined in the client-side auth context. Added Better Auth's `customSession` plugin to include the user's role field in the session data.
+
+**Server‑Side Changes**
+- `server/src/auth.ts` – Added `customSession` plugin to fetch and include the `role` field in session data
+- Added `user.additionalFields.role` configuration to define the custom role field
+
+**Client‑Side Changes**
+- `client/src/lib/auth.tsx` – Updated `SessionUser` interface to have required `role` field, mapped `data.user.role` from session
+- `client/src/components/app-shell.tsx` – Removed debug `console.log` statement, fixed mobile nav to check `user?.role === 'ADMIN'`
+- `client/src/components/tickets-list-page.tsx` – Added role check to "Open ticket" link (only visible for ADMIN users)
 
 **Usage**
-1. Open a ticket in the detail view
-2. Click the Priority field in the metadata rail
-3. Select a new priority from the dropdown
-4. The change is applied immediately and synced across all open ticket lists
-
-</details>
+- The `user.role` is now available in `useAuth()` hook and in `AppShell` component
+- Role is stored in the database as `ADMIN` or `AGENT` (default)
+- ADMIN users see the "Crew" link in both desktop and mobile navigation
+- ADMIN users see the "Open ticket" button in the tickets list page

@@ -49,6 +49,7 @@ import {
   type CustomerReplyNotification,
 } from '@/lib/socket-client';
 import { useNotifications } from '@/components/notification-context';
+import { useAuth } from '@/lib/auth';
 
 /**
  * Tickets blotter — the dispatcher's incident log (server-driven).
@@ -258,6 +259,8 @@ export function TicketsListPage() {
   // Query client for real-time updates
   const queryClient = useQueryClient();
 
+  const { user } = useAuth();
+
   // Notification context for unread tickets
   const { addNotification, markTicketAsRead, unreadTicketIds } = useNotifications();
 
@@ -335,11 +338,7 @@ export function TicketsListPage() {
           if (!assignee) {
             return <span className="text-xs text-[#C7C4BB]">Unassigned</span>;
           }
-          return (
-            <span className="text-sm text-[#16150F]">
-              {assignee.name ?? assignee.email}
-            </span>
-          );
+          return <span className="text-sm text-[#16150F]">{assignee.name ?? assignee.email}</span>;
         },
         enableSorting: false,
       }),
@@ -351,9 +350,7 @@ export function TicketsListPage() {
             <span className="font-mono text-[11px] tracking-tight text-[#6B6860]">
               {logTimestamp(info.getValue())}
             </span>
-            <span className="text-[11px] text-[#C7C4BB]">
-              {relativeTime(info.getValue())}
-            </span>
+            <span className="text-[11px] text-[#C7C4BB]">{relativeTime(info.getValue())}</span>
           </div>
         ),
         enableSorting: true,
@@ -556,13 +553,15 @@ export function TicketsListPage() {
               className="h-9 border-[#E4E1D7] bg-white pl-8 placeholder:text-[#6B6860] focus-visible:ring-[#1E3A5F]/30"
             />
           </div>
-          <Link
-            to="/tickets/create"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1E3A5F] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 focus-visible:ring-offset-2 rounded"
-          >
-            <TicketPlus className="size-3.5" />
-            Open ticket
-          </Link>
+          {user?.role === 'ADMIN' && (
+            <Link
+              to="/tickets/create"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-[#1E3A5F] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 focus-visible:ring-offset-2 rounded"
+            >
+              <TicketPlus className="size-3.5" />
+              Open ticket
+            </Link>
+          )}
         </div>
 
         {/* Triage filters */}

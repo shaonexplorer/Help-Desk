@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
+import { customSession } from 'better-auth/plugins';
 import prisma from './prisma';
 
 // Fail fast at startup rather than run with a weak / missing secret that
@@ -35,5 +36,32 @@ export const auth = betterAuth({
     expiresIn: 7 * 24 * 60 * 60, // seconds
   },
 
-  // You can add more plugins later (e.g., twoFactor, social providers)
+  // Include the user's role in the session
+  user: {
+    additionalFields: {
+      role: {
+        type: 'string',
+        input: false,
+      },
+    },
+  },
+
+  // Use customSession plugin to include role in session data
+  plugins: [
+    customSession(async ({ user, session }) => {
+      // Fetch the user's role from the database
+      const dbUser = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { role: true },
+      });
+
+      return {
+        user: {
+          ...user,
+          role: dbUser?.role ?? 'AGENT',
+        },
+        session,
+      };
+    }),
+  ],
 });

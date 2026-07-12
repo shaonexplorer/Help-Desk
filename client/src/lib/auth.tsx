@@ -10,7 +10,7 @@ interface SessionUser {
   name?: string | null;
   email: string;
   image?: string | null;
-  role?: 'ADMIN' | 'AGENT';
+  role: 'ADMIN' | 'AGENT';
 }
 
 interface AuthState {
@@ -34,12 +34,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Map the Better Auth session shape into our app's SessionUser.
   // useSession returns { session, user } — we expose just the user.
+  // The role is added via the customSession plugin on the server.
   const user: SessionUser | null = data?.user
     ? {
         id: data.user.id,
         name: data.user.name ?? null,
         email: data.user.email,
         image: data.user.image ?? null,
+        role: (data.user as any).role ?? 'AGENT',
       }
     : null;
 

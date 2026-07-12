@@ -28,6 +28,7 @@ import {
   Shield,
   Sparkles,
 } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
 /**
  * Ticket detail — the incident file pulled from a cabinet, now with a dispatch
  * rail and conversation thread.
@@ -243,6 +244,8 @@ export function TicketDetailPage() {
   const [replyContent, setReplyContent] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [isPolishing, setIsPolishing] = useState(false);
+
+  const { user } = useAuth();
 
   const {
     data,
@@ -637,7 +640,9 @@ export function TicketDetailPage() {
                     <span
                       className={`h-5 w-px shrink-0 rounded-full ${PRIORITY_STYLES[ticket.priority].border}`}
                     />
-                    <span className={`flex-1 text-sm font-medium ${PRIORITY_STYLES[ticket.priority].text}`}>
+                    <span
+                      className={`flex-1 text-sm font-medium ${PRIORITY_STYLES[ticket.priority].text}`}
+                    >
                       {PRIORITY_LABELS[ticket.priority]}
                     </span>
                     <svg
@@ -656,7 +661,11 @@ export function TicketDetailPage() {
 
                   {/* Priority dropdown */}
                   {openPriority && (
-                    <div className="relative mt-1" role="listbox" aria-label="Change ticket priority">
+                    <div
+                      className="relative mt-1"
+                      role="listbox"
+                      aria-label="Change ticket priority"
+                    >
                       <div className="absolute left-0 right-0 z-30 overflow-hidden rounded-lg border border-[#E4E1D7] bg-white py-1 shadow-lg shadow-[#16150F]/5">
                         {Object.entries(PRIORITY_LABELS).map(([value, label]) => {
                           const priority = value as TicketPriority;
@@ -681,10 +690,10 @@ export function TicketDetailPage() {
                                   priority === 'LOW'
                                     ? 'bg-[#6B6860]'
                                     : priority === 'MEDIUM'
-                                    ? 'bg-[#16150F]'
-                                    : priority === 'HIGH'
-                                    ? 'bg-[#8B5E1A]'
-                                    : 'bg-[#9B3627]'
+                                      ? 'bg-[#16150F]'
+                                      : priority === 'HIGH'
+                                        ? 'bg-[#8B5E1A]'
+                                        : 'bg-[#9B3627]'
                                 }`}
                               />
                               <span
@@ -701,40 +710,44 @@ export function TicketDetailPage() {
                   )}
                 </div>
 
+                {/* Assigned to — delegate card */}
+                <div className="">
+                  <p className="mb-1.5 text-[11px] uppercase tracking-[0.08em] text-[#C7C4BB]">
+                    Assigned to
+                  </p>
+                  <div className="">
+                    {ticket.assignedTo ? (
+                      <div className="flex items-center gap-2.5">
+                        <span className="grid size-7 shrink-0 place-items-center rounded-md bg-[#E8EEF5] text-[11px] font-semibold tracking-tight text-[#1E3A5F]">
+                          {monogramFor(ticket.assignedTo)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-sm text-[#16150F]">
+                          {ticket.assignedTo.name ?? ticket.assignedTo.email}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-[#C7C4BB] mr-1.5">Unassigned</span>
+                    )}
+                    {user?.role === 'ADMIN' && (
+                      <button
+                        type="button"
+                        onClick={() => setAssigning(true)}
+                        disabled={pending}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[#E4E1D7] bg-white px-2.5 py-1 text-xs font-medium text-[#1E3A5F] transition-colors hover:bg-[#E8EEF5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 focus-visible:ring-offset-2 disabled:opacity-50"
+                      >
+                        <UserPlus className="size-3" />
+                        {ticket.assignedTo ? 'Reassign' : 'Assign'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Category */}
                 <RailItem icon={Tag} label="Category">
                   <span className="inline-flex items-center rounded border border-[#E4E1D7] bg-[#F7F6F1] px-2 py-0.5 text-xs tracking-tight text-[#6B6860]">
                     {CATEGORY_LABELS[ticket.category as TicketCategory]}
                   </span>
                 </RailItem>
-
-                {/* Assigned to — delegate card */}
-                <div className="">
-                  <p className="mb-1.5 text-[11px] uppercase tracking-[0.08em] text-[#C7C4BB]">
-                    Assigned to
-                  </p>
-                  {ticket.assignedTo ? (
-                    <div className="flex items-center gap-2.5">
-                      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-[#E8EEF5] text-[11px] font-semibold tracking-tight text-[#1E3A5F]">
-                        {monogramFor(ticket.assignedTo)}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-sm text-[#16150F]">
-                        {ticket.assignedTo.name ?? ticket.assignedTo.email}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-[#C7C4BB] mr-1.5">Unassigned</span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setAssigning(true)}
-                    disabled={pending}
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-[#E4E1D7] bg-white px-2.5 py-1 text-xs font-medium text-[#1E3A5F] transition-colors hover:bg-[#E8EEF5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1E3A5F]/30 focus-visible:ring-offset-2 disabled:opacity-50"
-                  >
-                    <UserPlus className="size-3" />
-                    {ticket.assignedTo ? 'Reassign' : 'Assign'}
-                  </button>
-                </div>
 
                 {/* Sender (for inbound emails) or Opened by (fallback) */}
                 {ticket.senderEmail || ticket.senderName ? (

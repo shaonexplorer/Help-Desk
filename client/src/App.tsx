@@ -29,6 +29,7 @@ export function App() {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/users"
               element={
@@ -39,6 +40,7 @@ export function App() {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/tickets"
               element={

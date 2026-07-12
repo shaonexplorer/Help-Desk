@@ -18,8 +18,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // console.log('userRole', user?.role);
-
   // Close the mobile menu on any route change so a navigation never leaves a
   // stale open panel behind.
   useEffect(() => {
@@ -58,13 +56,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-screen flex-col">
       <header className="relative flex items-center justify-between border-b border-border px-6 py-4">
         <div className="flex items-center gap-2.5">
-          <span className="grid size-7 place-items-center rounded-md bg-primary text-primary-foreground">
-            <Ticket className="size-3.5" />
+          <span className="grid size-7  place-items-center rounded-md bg-primary text-primary-foreground">
+            <Ticket className="size-5" />
           </span>
-          <div className="flex items-baseline gap-1.5">
-            <h1 className="text-lg font-medium tracking-tight text-[#16150F]">Help Desk</h1>
+          <div className="flex   items-baseline  gap-1 ">
+            <h1 className="text-lg font-medium tracking-tight text-[#16150F] leading-[18px]">
+              Help Desk
+            </h1>
             <span className="font-mono text-xs tracking-tight text-[#6B6860]">
-              abir@zeneheliac.resend.app
+              (abir@zeneheliac.resend.app)
             </span>
           </div>
           <nav className="ml-4 hidden items-center gap-0.5 sm:flex">
@@ -96,20 +96,22 @@ export function AppShell({ children }: { children: ReactNode }) {
               <ClipboardList className="size-3.5" />
               Tickets
             </NavLink>
-            <NavLink
-              to="/users"
-              end
-              className={({ isActive }) =>
-                `flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors ${
-                  isActive
-                    ? 'bg-[#2F7D4F]/10 font-medium text-[#2F7D4F]'
-                    : 'text-[#6B6860] hover:text-[#16150F]'
-                }`
-              }
-            >
-              <Users className="size-3.5" />
-              Crew
-            </NavLink>
+            {user?.role && user?.role === 'ADMIN' && (
+              <NavLink
+                to="/users"
+                end
+                className={({ isActive }) =>
+                  `flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors ${
+                    isActive
+                      ? 'bg-[#2F7D4F]/10 font-medium text-[#2F7D4F]'
+                      : 'text-[#6B6860] hover:text-[#16150F]'
+                  }`
+                }
+              >
+                <Users className="size-3.5" />
+                Crew
+              </NavLink>
+            )}
           </nav>
         </div>
         <div className="flex items-center gap-4">
@@ -184,20 +186,22 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <ClipboardList className="size-3.5" />
                 Tickets
               </NavLink>
-              <NavLink
-                to="/users"
-                end
-                role="menuitem"
-                onClick={() => setMenuOpen(false)}
-                className={({ isActive }) =>
-                  `flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-[#F7F6F1] focus-visible:bg-[#F7F6F1] focus-visible:outline-none ${
-                    isActive ? 'bg-[#2F7D4F]/10 font-medium text-[#2F7D4F]' : 'text-[#6B6860]'
-                  }`
-                }
-              >
-                <Users className="size-3.5" />
-                Crew
-              </NavLink>
+              {user?.role === 'ADMIN' && (
+                <NavLink
+                  to="/users"
+                  end
+                  role="menuitem"
+                  onClick={() => setMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-[#F7F6F1] focus-visible:bg-[#F7F6F1] focus-visible:outline-none ${
+                      isActive ? 'bg-[#2F7D4F]/10 font-medium text-[#2F7D4F]' : 'text-[#6B6860]'
+                    }`
+                  }
+                >
+                  <Users className="size-3.5" />
+                  Crew
+                </NavLink>
+              )}
 
               <div className="my-1 border-t border-[#E4E1D7]" role="separator" />
 
