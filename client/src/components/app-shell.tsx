@@ -18,6 +18,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // console.log('userRole', user?.role);
+
   // Close the mobile menu on any route change so a navigation never leaves a
   // stale open panel behind.
   useEffect(() => {
